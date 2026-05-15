@@ -110,3 +110,38 @@ describe('generator regression schema tests', () => {
     expect(custom.interactive.selectableItems.length).toBeGreaterThan(0);
   });
 });
+
+describe('block composition and requirement mapping', () => {
+  it('marks requirements with valid mapping status and target when rendered', () => {
+    const schema = buildSchema('Create pricing with monthly and annual billing, comparison matrix, enterprise contact sales, and CTA.');
+    expect(schema.requirements.every((r) => ['rendered', 'inspector', 'unmapped'].includes(r.status))).toBe(true);
+    expect(schema.requirements.filter((r) => r.status === 'rendered').every((r) => !!r.targetBlock)).toBe(true);
+  });
+
+  it('creates pricing comparison matrix block', () => {
+    const schema = buildSchema('Build pricing plans with a detailed comparison matrix for features.');
+    expect(schema.blocks.some((b) => b.type === 'comparisonMatrix')).toBe(true);
+  });
+
+  it('creates billing toggle for monthly annual intent', () => {
+    const schema = buildSchema('Pricing page with monthly and annual billing toggle.');
+    expect(schema.blocks.some((b) => b.type === 'billingToggle')).toBe(true);
+  });
+
+  it('creates enterprise contact block for enterprise prompts', () => {
+    const schema = buildSchema('Pricing for enterprise buyers with contact sales option.');
+    expect(schema.blocks.some((b) => b.type === 'enterpriseContact')).toBe(true);
+  });
+
+  it('creates onboardingSteps block for onboarding custom prompts', () => {
+    const schema = buildSchema('Create a custom onboarding flow with setup steps and import step.');
+    expect(schema.blocks.some((b) => b.type === 'onboardingSteps')).toBe(true);
+  });
+
+  it('maps targeted visual directives to featured pricing card', () => {
+    const schema = buildSchema(pricingPrompt);
+    const visualMapped = schema.requirements.filter((r) => r.bucket === 'visual_intent' && r.status === 'rendered');
+    expect(visualMapped.length).toBeGreaterThan(0);
+    expect(visualMapped.some((r) => r.targetBlock === 'pricingCards' || r.targetBlock === 'proofStrip')).toBe(true);
+  });
+});
