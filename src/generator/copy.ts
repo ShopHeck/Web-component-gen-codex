@@ -105,7 +105,7 @@ function sanitizeVisible(text: string, prompt: string, fallback: string): string
 
 function inferIntent(spans: Span[], pattern: Pattern): ActionIntent {
   const raw = spans.map((s) => normalizeCase(s.text)).join(' ');
-  if (raw.includes('launch') || raw.includes('start')) return 'launch';
+  if (raw.includes('launch') || /\b(start|get started|begin)( now| today)?\b/.test(raw)) return 'launch';
   if (raw.includes('save')) return 'save';
   if (raw.includes('send') || raw.includes('reply')) return 'send';
   if (raw.includes('purchase') || raw.includes('checkout') || raw.includes('buy')) return 'purchase';
