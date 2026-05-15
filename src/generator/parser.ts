@@ -36,7 +36,17 @@ export function buildSchema(prompt: string): Schema {
     { label: `${cta} CTA`, source: 'action' }
   ].slice(0, 16);
 
-  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : 'composed', product: prod, headline: pat === 'pricing' ? `${prod} pricing for serious builders.` : `${prod} custom interface.`, subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`) };
+  const patternHeadlines: Record<Pattern, string> = {
+    pricing: `${prod} pricing for serious builders.`,
+    dashboard: `${prod} command dashboard for real-time insight.`,
+    settings: `${prod} settings console for secure control.`,
+    checkout: `${prod} checkout summary built for confident conversion.`,
+    chat: `${prod} support inbox for fast, contextual replies.`,
+    calendar: `${prod} booking scheduler for polished coordination.`,
+    custom: `${prod} custom interface.`
+  };
+
+  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`) };
 
   const unmapped = validateMappings(ir.entities.all, schema);
   schema.requirements.push(...unmapped.map((u) => ({ label: `UNMAPPED ${u.label}`, source: `validation:${u.source}:${u.reason}` })));

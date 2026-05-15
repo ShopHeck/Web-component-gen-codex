@@ -11,7 +11,7 @@ export type Directive = {
   reason: string;
 };
 
-const magnitudeWords: Record<string, number> = { subtle: 0.08, medium: 0.15, strong: 0.25 };
+const magnitudeWords = ['subtle', 'medium', 'strong'] as const;
 
 function resolveTarget(text: string): DirectiveTarget {
   if (/final\s+card|last\s+card/.test(text)) return 'final_card';
@@ -26,7 +26,7 @@ function parseMagnitude(text: string): number | string {
   if (pct) return 1 + Number(pct[1]) / 100;
   const ratio = text.match(/(\d+(?:\.\d+)?)x/i);
   if (ratio) return Number(ratio[1]);
-  for (const [word, amount] of Object.entries(magnitudeWords)) if (text.includes(word)) return amount;
+  for (const word of magnitudeWords) if (text.includes(word)) return word;
   return 'medium';
 }
 
