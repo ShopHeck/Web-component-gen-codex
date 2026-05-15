@@ -4,7 +4,9 @@ import { validateMappings } from './validate';
 
 export type Pattern = 'pricing' | 'dashboard' | 'settings' | 'checkout' | 'chat' | 'calendar' | 'custom';
 export type Plan = { name: string; price: string; annual: string; description: string; features: string[]; visual: { featured: boolean; scale: number; glow: string; bevel: string; badge?: string } };
-export type Schema = { pattern: Pattern; strategy: string; product: string; headline: string; subhead: string; action: string; features: string[]; plans: Plan[]; metrics: { label: string; value: string; delta: string }[]; toggles: string[]; messages: string[]; slots: string[]; lineItems: { label: string; value: string }[]; requirements: { label: string; source: string }[]; directives: string[] };
+export type RequirementBucket = 'content' | 'controls' | 'metrics' | 'actions' | 'visual_intent';
+export type RequirementStatus = 'rendered' | 'inspector' | 'unmapped';
+export type Schema = { pattern: Pattern; strategy: string; product: string; headline: string; subhead: string; action: string; features: string[]; plans: Plan[]; metrics: { label: string; value: string; delta: string }[]; toggles: string[]; messages: string[]; slots: string[]; lineItems: { label: string; value: string }[]; requirements: { label: string; source: string; bucket: RequirementBucket; status: RequirementStatus }[]; directives: string[]; custom: { header: string[]; body: string[]; controls: string[]; ctas: string[] } };
 
 type DetectedPattern = { pattern: Pattern; scores: Record<Pattern, number>; reasons: Span[] };
 type ParseIR = ReturnType<typeof normalizePrompt> & { pattern: DetectedPattern; entities: EntityPack; directives: Directive[] };
@@ -29,12 +31,37 @@ export function buildSchema(prompt: string): Schema {
   const cta = action(ir, pat);
   const plans = pat === 'pricing' ? makePlans(ir, prod, feats) : [];
 
-  const requirements = [
+  const classifyBucket = (label: string, source: string): RequirementBucket => {
+    const x = `${label} ${source}`.toLowerCase();
+    if (x.includes('directive') || x.includes('glow') || x.includes('bevel') || x.includes('highlight') || x.includes('scale')) return 'visual_intent';
+    if (x.includes('cta') || x.includes('action') || x.includes('purchase') || x.includes('launch') || x.includes('send')) return 'actions';
+    if (x.includes('metric') || /\d/.test(label)) return 'metrics';
+    if (x.includes('toggle') || x.includes('switch') || x.includes('control') || x.includes('field')) return 'controls';
+    return 'content';
+  };
+
+  const baseRequirements = [
     ...ir.entities.fields.map((f) => ({ label: title(f.text), source: `field@${f.start}-${f.end}:${f.reason}:${f.source || 'n/a'}` })),
+    ...ir.entities.sections.map((s) => ({ label: title(s.text), source: `section@${s.start}-${s.end}:${s.reason}:${s.source || 'n/a'}` })),
+    ...ir.entities.metrics.map((v) => ({ label: v.text, source: `metric@${v.start}-${v.end}:${v.reason}:${v.source || 'n/a'}` })),
     ...ir.entities.prices.map((v) => ({ label: v.text, source: `value@${v.start}-${v.end}:${v.reason}:${v.source || 'n/a'}` })),
+    ...ir.entities.ctas.map((c) => ({ label: title(c.text), source: `cta@${c.start}-${c.end}:${c.reason}:${c.source || 'n/a'}` })),
     ...ir.directives.map((d) => ({ label: `${d.target} ${d.effect} ${String(d.magnitude)}`, source: `directive@${d.span.start}-${d.span.end}:${d.reason}` })),
     { label: `${cta} CTA`, source: 'action' }
-  ].slice(0, 16);
+  ];
+
+  const requirements = baseRequirements.map((r) => ({ ...r, bucket: classifyBucket(r.label, r.source), status: 'inspector' as RequirementStatus })).slice(0, 30);
+  const density = requirements.length;
+  const controlCount = requirements.filter((r) => r.bucket === 'controls').length;
+  const customStrategy = controlCount > 4 ? 'panel-grid' : density > 12 ? 'split' : 'stacked';
+  const custom = {
+    header: requirements.filter((r) => r.bucket === 'content').slice(0, 3).map((r) => r.label),
+    body: requirements.filter((r) => r.bucket === 'metrics' || r.bucket === 'content').slice(0, 8).map((r) => r.label),
+    controls: requirements.filter((r) => r.bucket === 'controls').slice(0, 6).map((r) => r.label),
+    ctas: requirements.filter((r) => r.bucket === 'actions').slice(0, 3).map((r) => r.label)
+  };
+  const renderedLabels = new Set([...custom.header, ...custom.body, ...custom.controls, ...custom.ctas, cta]);
+  requirements.forEach((r) => { if (renderedLabels.has(r.label)) r.status = 'rendered'; });
 
   const patternHeadlines: Record<Pattern, string> = {
     pricing: `${prod} pricing for serious builders.`,
@@ -46,9 +73,9 @@ export function buildSchema(prompt: string): Schema {
     custom: `${prod} custom interface.`
   };
 
-  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`) };
+  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : pat === 'custom' ? customStrategy : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`), custom };
 
   const unmapped = validateMappings(ir.entities.all, schema);
-  schema.requirements.push(...unmapped.map((u) => ({ label: `UNMAPPED ${u.label}`, source: `validation:${u.source}:${u.reason}` })));
+  schema.requirements.push(...unmapped.map((u) => ({ label: `UNMAPPED ${u.label}`, source: `validation:${u.source}:${u.reason}`, bucket: classifyBucket(u.label, u.source), status: 'unmapped' as RequirementStatus })));
   return schema;
 }
