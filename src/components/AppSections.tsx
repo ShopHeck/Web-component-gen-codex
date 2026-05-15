@@ -1,0 +1,11 @@
+import { Copy, Download, Monitor, Smartphone, Tablet, Wand2 } from 'lucide-react';
+import type { Schema, Tokens, Viewport } from '../types/schema';
+
+export function Section({title,n}:{title:string;n:string}){return <div className="section-title"><span>{n}</span><h2>{title}</h2></div>}
+export function Chip({label,value}:{label:string;value:string}){return <div className="chip"><small>{label}</small><b>{value}</b></div>}
+export function StyleControls({design,setDesign}:{design:Tokens;setDesign:(d:Tokens)=>void}){return <div className="style"><label>Highlight<input type="color" value="#22d3ee" onChange={e=>setDesign({...design,highlight:e.target.value,button:e.target.value})}/></label><label>Text size<input type="range" min="80" max="130" value={Math.round(design.fontScale*100)} onChange={e=>setDesign({...design,fontScale:Number(e.target.value)/100})}/></label><label>Card radius<input type="range" min="6" max="36" value={design.radius} onChange={e=>setDesign({...design,radius:Number(e.target.value)})}/></label><label>Button radius<input type="range" min="4" max="999" value={design.buttonRadius} onChange={e=>setDesign({...design,buttonRadius:Number(e.target.value)})}/></label></div>}
+export const widths:Record<Viewport,string>={mobile:'390px',tablet:'760px',desktop:'1080px',fluid:'100%'};
+export const title=(v:string)=>v.charAt(0).toUpperCase()+v.slice(1);
+export const Icons={Copy,Download,Monitor,Smartphone,Tablet,Wand2};
+export type Template = [string, string, string];
+export function WorkbenchHeader({schema,draftPrompt,generatedPrompt,onGenerate}:{schema:Schema;draftPrompt:string;generatedPrompt:string;onGenerate:()=>void}){const {Wand2}=Icons;return <section className="workbench-head"><div className="brand"><span>IF</span><div><p>Local interface workshop</p><h1>Prompt, compose, inspect, ship.</h1><small>A deterministic studio bench for turning detailed briefs into editable, interactive component systems.</small></div></div><div className="head-actions"><button className="primary" onClick={onGenerate}><Wand2 size={18}/>Generate</button><b>{schema.directives.length}<small>directives</small></b><b>{draftPrompt!==generatedPrompt?'Draft changed':'In sync'}<small>{draftPrompt!==generatedPrompt?'not generated':'ready'}</small></b><b>1<small>package</small></b></div></section>}

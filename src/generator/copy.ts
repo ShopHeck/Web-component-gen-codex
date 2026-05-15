@@ -1,6 +1,6 @@
 import type { Directive } from './directives';
 import type { EntityPack, NormalizedPrompt, Span } from './entities';
-import type { Pattern, Plan } from './parser';
+import type { Pattern, Plan } from '../types/schema';
 
 export type ActionIntent = 'launch' | 'save' | 'send' | 'purchase' | 'book' | 'choose_plan' | 'continue';
 
