@@ -1,6 +1,6 @@
 import type { Span } from './entities';
 
-export type DirectiveTarget = 'final_card' | 'premium_plan' | 'card' | 'unknown';
+export type DirectiveTarget = 'final_card' | 'premium_plan' | 'card' | 'header' | 'body' | 'controls' | 'cta_area' | 'unknown';
 export type DirectiveEffect = 'scale' | 'glow' | 'bevel' | 'highlight' | 'emphasis';
 export type Directive = {
   raw: string;
@@ -18,6 +18,10 @@ function resolveTarget(text: string): DirectiveTarget {
   if (/premium\s+plan|pro\s+plan/.test(text)) return 'premium_plan';
   if (/\b\d+(st|nd|rd|th)\s+card\b/.test(text) || /\bnamed\s+\w+\s+plan\b/.test(text)) return 'card';
   if (/\bcard\b/.test(text)) return 'card';
+  if (/\bheader|hero|title\b/.test(text)) return 'header';
+  if (/\bbody|content|section\b/.test(text)) return 'body';
+  if (/\bcontrols?|toggle|switch|input\b/.test(text)) return 'controls';
+  if (/\bcta|button|action\b/.test(text)) return 'cta_area';
   return 'unknown';
 }
 
