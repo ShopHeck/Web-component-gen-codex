@@ -37,12 +37,12 @@ function parseMagnitude(text: string): number | string {
 export function extractDirectives(prompt: string): Directive[] {
   const lower = prompt.toLowerCase();
   const hits: Directive[] = [];
-  const directiveRegex = /(final\s+card|premium|\d+(?:st|nd|rd|th)\s+card|named\s+\w+\s+plan|card)?[^.\n,;]*(scale|glow|bevel|highlight|emphasis|stand out|bigger|larger)[^.\n]*/gi;
+  const directiveRegex = /(final\s+card|premium|\d+(?:st|nd|rd|th)\s+card|named\s+\w+\s+plan|card)?[^.\n,;]*(scale|size|glow|bevel|highlight|emphasis|stand out|bigger|larger)[^.\n]*/gi;
   for (const m of prompt.matchAll(directiveRegex)) {
     const raw = (m[0] || '').trim();
     if (!raw) continue;
     const effectRaw = (m[2] || '').toLowerCase();
-    const effect: DirectiveEffect = effectRaw === 'stand out' ? 'highlight' : effectRaw === 'bigger' || effectRaw === 'larger' ? 'scale' : (effectRaw as DirectiveEffect);
+    const effect: DirectiveEffect = effectRaw === 'stand out' ? 'highlight' : effectRaw === 'bigger' || effectRaw === 'larger' || effectRaw === 'size' ? 'scale' : (effectRaw as DirectiveEffect);
     const target = resolveTarget(raw.toLowerCase());
     const magnitude = parseMagnitude(raw.toLowerCase());
     const start = m.index || 0;
