@@ -4,7 +4,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "lint:merge": "sh -c \"! rg -n '^(<{7}|={7}|>{7})' --glob '!node_modules/**' --glob '!package.json'\"",
+    "lint:merge": "node scripts/check-merge-markers.mjs",
     "mobile:sync": "npx cap sync ios",
     "mobile:open:ios": "npx cap open ios"
   },

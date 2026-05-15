@@ -13,29 +13,21 @@ npm install
 npm run dev
 ```
 
-## Production build checks
+## Production checks
 
 ```bash
-npm run typecheck
 npm run lint:merge
+npm run typecheck
 npm run build
 ```
 
-## iOS App Store scaffold (Capacitor + Xcode)
+## iOS App Store packaging
 
-This repo now includes Capacitor 7 scaffolding suitable for modern iOS packaging workflows:
+Capacitor scaffold is included for iOS builds. Use:
 
 ```bash
-npm run build
 npm run mobile:sync
 npm run mobile:open:ios
 ```
 
-Then in Xcode (2026 workflow):
-
-1. Select the `App` target and set signing/team/bundle identifier.
-2. Ensure deployment target and device family match App Store requirements.
-3. Add required privacy usage strings/capabilities for any native plugins you enable.
-4. Archive via **Product → Archive**, validate, and upload with Organizer.
-
-> Note: this scaffold keeps the app local-first and WebKit-hosted; add native plugins only as needed.
+Detailed submission checklist is in [`docs/ios-app-store.md`](docs/ios-app-store.md).
