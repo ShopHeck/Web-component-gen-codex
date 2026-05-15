@@ -3,10 +3,18 @@ import { extractDirectives, type Directive } from './directives';
 import { validateMappings } from './validate';
 
 export type Pattern = 'pricing' | 'dashboard' | 'settings' | 'checkout' | 'chat' | 'calendar' | 'custom';
+export type CtaBehavior = 'select_plan' | 'toggle_setting' | 'send_chat' | 'select_slot' | 'checkout' | 'custom';
+export type SelectableItem = { id: string; label: string; selected: boolean; group: string };
+export type ControlModel = {
+  mode: 'single' | 'multi';
+  ctaBehavior: CtaBehavior;
+  selectableItems: SelectableItem[];
+  localFeedbackMs: number;
+};
 export type Plan = { name: string; price: string; annual: string; description: string; features: string[]; visual: { featured: boolean; scale: number; glow: string; bevel: string; badge?: string } };
 export type RequirementBucket = 'content' | 'controls' | 'metrics' | 'actions' | 'visual_intent';
 export type RequirementStatus = 'rendered' | 'inspector' | 'unmapped';
-export type Schema = { pattern: Pattern; strategy: string; product: string; headline: string; subhead: string; action: string; features: string[]; plans: Plan[]; metrics: { label: string; value: string; delta: string }[]; toggles: string[]; messages: string[]; slots: string[]; lineItems: { label: string; value: string }[]; requirements: { label: string; source: string; bucket: RequirementBucket; status: RequirementStatus }[]; directives: string[]; custom: { header: string[]; body: string[]; controls: string[]; ctas: string[] } };
+export type Schema = { pattern: Pattern; strategy: string; product: string; headline: string; subhead: string; action: string; features: string[]; plans: Plan[]; metrics: { label: string; value: string; delta: string }[]; toggles: string[]; messages: string[]; slots: string[]; lineItems: { label: string; value: string }[]; requirements: { label: string; source: string; bucket: RequirementBucket; status: RequirementStatus }[]; directives: string[]; custom: { header: string[]; body: string[]; controls: string[]; ctas: string[] }; interactive: ControlModel };
 
 type DetectedPattern = { pattern: Pattern; scores: Record<Pattern, number>; reasons: Span[] };
 type ParseIR = ReturnType<typeof normalizePrompt> & { pattern: DetectedPattern; entities: EntityPack; directives: Directive[] };
@@ -17,6 +25,14 @@ const has = (t: string, list: string[]) => list.some((x) => t.includes(x));
 const after = (s: string, p: string) => { const i = s.toLowerCase().indexOf(p); return i < 0 ? '' : s.slice(i + p.length).split(/[.,]/)[0].trim(); };
 
 function detectPattern(prompt: string): DetectedPattern { const n = prompt.toLowerCase(); const scores: Record<Pattern, number> = { pricing: 0, dashboard: 0, settings: 0, checkout: 0, chat: 0, calendar: 0, custom: 0 }; const reasons: Span[] = []; (Object.keys(patternKeywords) as Pattern[]).forEach((p) => { patternKeywords[p].forEach((kw) => { const idx = n.indexOf(kw); if (idx >= 0) { scores[p] += kw.length > 6 ? 2 : 1; reasons.push({ start: idx, end: idx + kw.length, text: kw, reason: `keyword:${p}`, source: 'pattern_detector' }); } }); }); const winner = (Object.entries(scores).sort((a, b) => b[1] - a[1])[0]?.[0] as Pattern) || 'custom'; return { pattern: scores[winner] > 0 ? winner : 'custom', scores, reasons }; }
+function ctaBehaviorForPattern(p: Pattern): CtaBehavior {
+  if (p === 'pricing') return 'select_plan';
+  if (p === 'settings') return 'toggle_setting';
+  if (p === 'chat') return 'send_chat';
+  if (p === 'calendar') return 'select_slot';
+  if (p === 'checkout') return 'checkout';
+  return 'custom';
+}
 function product(p: string) { const c = after(p, 'called ') || after(p, 'named '); if (c) return title(c.split(' with ')[0].split(' for ')[0].split(' and ')[0]); return 'InterfaceForge'; }
 function action(ir: ParseIR, pat: Pattern) { const cta = ir.entities.ctas[0]?.text.toLowerCase() || ''; if (cta.includes('launch')) return 'Launch now'; if (cta.includes('save')) return 'Save changes'; if (cta.includes('send')) return 'Send reply'; if (cta.includes('purchase')) return 'Complete purchase'; if (cta.includes('book')) return 'Book session'; return pat === 'pricing' ? 'Choose plan' : 'Continue'; }
 function featuresFromIR(ir: ParseIR, prod: string) { const t = ir.normalized; const out: string[] = []; if (has(t, ['local', 'no backend', 'no api'])) out.push('Runs fully on-device'); if (t.includes('export')) out.push('Export-ready code package'); if (has(t, ['neural', 'glow'])) out.push('Neural glow states'); if (t.includes('interactive')) out.push('Interactive states'); ir.entities.fields.filter((x) => !x.text.startsWith('$') && x.text.length < 48).slice(0, 4).forEach((x) => out.push(title(x.text))); return [...new Set(out.length ? out : [`${prod} workflow`, 'Production JSX', 'Design tokens'])].slice(0, 8); }
@@ -73,7 +89,7 @@ export function buildSchema(prompt: string): Schema {
     custom: `${prod} custom interface.`
   };
 
-  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : pat === 'custom' ? customStrategy : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`), custom };
+  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : pat === 'custom' ? customStrategy : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`), custom, interactive: { mode: pat === 'settings' ? 'multi' : 'single', ctaBehavior: ctaBehaviorForPattern(pat), localFeedbackMs: 1400, selectableItems: (pat === 'pricing' ? plans.map((p, i) => ({ id: `plan-${i}`, label: p.name, selected: Boolean(p.visual.featured), group: 'plans' })) : pat === 'settings' ? (ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f, i) => ({ id: `toggle-${i}`, label: title(f.text), selected: i % 2 === 0, group: 'settings' })) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'].map((t, i) => ({ id: `toggle-${i}`, label: t, selected: i % 2 === 0, group: 'settings' }))) : pat === 'calendar' ? ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'].map((s, i) => ({ id: `slot-${i}`, label: s, selected: i === 0, group: 'slots' })) : []) } };
 
   const unmapped = validateMappings(ir.entities.all, schema);
   schema.requirements.push(...unmapped.map((u) => ({ label: `UNMAPPED ${u.label}`, source: `validation:${u.source}:${u.reason}`, bucket: classifyBucket(u.label, u.source), status: 'unmapped' as RequirementStatus })));
