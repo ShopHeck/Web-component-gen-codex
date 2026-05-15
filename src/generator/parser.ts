@@ -4,9 +4,12 @@ import { validateMappings } from './validate';
 
 export type Pattern = 'pricing' | 'dashboard' | 'settings' | 'checkout' | 'chat' | 'calendar' | 'custom';
 export type Plan = { name: string; price: string; annual: string; description: string; features: string[]; visual: { featured: boolean; scale: number; glow: string; bevel: string; badge?: string } };
+export type ControlModel = { id: string; label: string; type: 'toggle' | 'input'; defaultValue?: boolean | string; placeholder?: string };
+export type CtaBehavior = { id: string; label: string; intent: 'primary' | 'secondary'; feedback: string };
+export type SelectableItem = { id: string; label: string; feedback: string; featured?: boolean };
 export type RequirementBucket = 'content' | 'controls' | 'metrics' | 'actions' | 'visual_intent';
 export type RequirementStatus = 'rendered' | 'inspector' | 'unmapped';
-export type Schema = { pattern: Pattern; strategy: string; product: string; headline: string; subhead: string; action: string; features: string[]; plans: Plan[]; metrics: { label: string; value: string; delta: string }[]; toggles: string[]; messages: string[]; slots: string[]; lineItems: { label: string; value: string }[]; requirements: { label: string; source: string; bucket: RequirementBucket; status: RequirementStatus }[]; directives: string[]; custom: { header: string[]; body: string[]; controls: string[]; ctas: string[] } };
+export type Schema = { pattern: Pattern; strategy: string; product: string; headline: string; subhead: string; action: string; features: string[]; plans: Plan[]; metrics: { label: string; value: string; delta: string }[]; toggles: string[]; messages: string[]; slots: string[]; lineItems: { label: string; value: string }[]; requirements: { label: string; source: string; bucket: RequirementBucket; status: RequirementStatus }[]; directives: string[]; interactive: { toggles: ControlModel[]; ctas: CtaBehavior[]; selectables: { pricing: SelectableItem[]; slots: SelectableItem[] } }; custom: { header: string[]; body: string[]; controls: string[]; ctas: string[] } };
 
 type DetectedPattern = { pattern: Pattern; scores: Record<Pattern, number>; reasons: Span[] };
 type ParseIR = ReturnType<typeof normalizePrompt> & { pattern: DetectedPattern; entities: EntityPack; directives: Directive[] };
@@ -73,7 +76,21 @@ export function buildSchema(prompt: string): Schema {
     custom: `${prod} custom interface.`
   };
 
-  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : pat === 'custom' ? customStrategy : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles: ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'], messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots: ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'], lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`), custom };
+  const toggles = ir.entities.fields.length > 2 ? ir.entities.fields.slice(0, 6).map((f) => title(f.text)) : ['Private mode', 'Local exports', 'Telemetry off', 'Weekly digest'];
+  const slots = ['Tue 10:30', 'Wed 14:00', 'Thu 16:15', 'Fri 09:00'];
+  const interactive = {
+    toggles: toggles.map((label, i) => ({ id: `toggle-${i}`, label, type: 'toggle' as const, defaultValue: i % 2 === 0 })),
+    ctas: [
+      { id: 'primary-action', label: cta, intent: 'primary' as const, feedback: `${cta} complete` },
+      { id: 'secondary-save', label: 'Save draft', intent: 'secondary' as const, feedback: 'Draft saved locally' }
+    ],
+    selectables: {
+      pricing: plans.map((p, i) => ({ id: `plan-${i}`, label: p.name, feedback: `${p.name} selected`, featured: p.visual.featured })),
+      slots: slots.map((label, i) => ({ id: `slot-${i}`, label, feedback: `${label} selected` }))
+    }
+  };
+
+  const schema: Schema = { pattern: pat, strategy: pat === 'pricing' ? 'grid' : pat === 'custom' ? customStrategy : 'composed', product: prod, headline: patternHeadlines[pat], subhead: pat === 'pricing' ? `${plans.length} tiers with ${ir.entities.prices[0] ? `plans from ${ir.entities.prices[0].text}` : 'clear packaging'}, studio-grade emphasis, and ${feats.slice(0, 3).join(', ').toLowerCase()}.` : `${prod} converts the prompt into a composed interface with ${feats.slice(0, 3).join(', ').toLowerCase()}.`, action: cta, features: feats, plans, metrics: [{ label: 'Revenue', value: '$128k', delta: '+18%' }, { label: 'Users', value: '42k', delta: '+11%' }, { label: 'Health', value: '94%', delta: 'stable' }, { label: 'Exports', value: '212', delta: 'local' }], toggles, messages: ['New request received', 'AI suggested reply prepared', 'Internal note ready'], slots, lineItems: [{ label: prod, value: '$79.00' }, { label: 'Taxes and fees', value: '$8.20' }, { label: 'Total', value: '$87.20' }], requirements, directives: ir.directives.map((d) => `${d.target}:${d.effect}:${String(d.magnitude)}@${d.span.start}-${d.span.end}`), interactive, custom };
 
   const unmapped = validateMappings(ir.entities.all, schema);
   schema.requirements.push(...unmapped.map((u) => ({ label: `UNMAPPED ${u.label}`, source: `validation:${u.source}:${u.reason}`, bucket: classifyBucket(u.label, u.source), status: 'unmapped' as RequirementStatus })));
