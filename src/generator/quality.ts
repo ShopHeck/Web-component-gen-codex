@@ -14,7 +14,13 @@ export type QualityIssueType =
   | 'shallow_interaction'
   | 'missing_state_coverage'
   | 'accessibility_intent_missing'
-  | 'weak_narrative_flow';
+  | 'weak_narrative_flow'
+  | 'requested_visual_object_missing'
+  | 'marker_layer_missing'
+  | 'animation_controls_missing'
+  | 'dataset_notice_missing'
+  | 'visualization_renderer_missing'
+  | 'generic_copy_mismatch';
 
 export type RepairSuggestionType =
   | 'add_missing_billing_toggle'
@@ -113,6 +119,16 @@ export function evaluateQuality(schema: Schema): QualityReport {
     if (!hasBlock(schema, 'datasetNotice') && hasIntent(schema, /(every|all|complete|existing)/)) { issues.push({ type: 'visualization_mismatch', message: 'Dataset completeness notice missing.' }); suggestedRepairs.push({ type: 'add_missing_dataset_notice', reason: 'Comprehensive data request requires local dataset notice.' }); }
   }
 
+
+  if (schema.pattern === 'visualization') {
+    if (hasIntent(schema, /(globe|spinning|rotating|orbit)/) && !hasBlock(schema, 'globeVisualization')) issues.push({ type: 'requested_visual_object_missing', message: 'Requested globe visual object missing.' });
+    if (hasIntent(schema, /(marker|location|base|latitude|longitude)/) && !hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'marker_layer_missing', message: 'Marker layer missing for requested geo markers.' });
+    if (hasIntent(schema, /(spinning|rotating|orbit|animation)/) && !hasBlock(schema, 'animationControls')) issues.push({ type: 'animation_controls_missing', message: 'Animation controls missing.' });
+    if (hasIntent(schema, /(every|all|complete|existing)/) && !hasBlock(schema, 'datasetNotice')) issues.push({ type: 'dataset_notice_missing', message: 'Dataset limitation notice missing.' });
+    if (!schema.blocks.some((b) => ['globeVisualization','mapVisualization','geoMarkerLayer'].includes(b.type))) issues.push({ type: 'visualization_renderer_missing', message: 'Visualization renderer blocks missing.' });
+    if (!/interfaceforge/i.test(schema.generationMeta?.originalPrompt || '') && /interfaceforge globe|interface blueprint/i.test(`${schema.headline} ${schema.subhead}`)) issues.push({ type: 'generic_copy_mismatch', message: 'Generic copy mismatch for visualization prompt.' });
+  }
+
   const interactionDepthScore = Math.min(100, 40 + (schema.interactive.selectableItems.length * 12));
   if (interactionDepthScore < 64) issues.push({ type: 'shallow_interaction', message: 'Interaction depth is shallow for studio-grade quality.' });
 
@@ -150,7 +166,8 @@ export function evaluateQuality(schema: Schema): QualityReport {
   if (unexecutedDirectives.length > 0) suggestedRepairs.push({ type: 'attach_directive_to_nearest_block', reason: 'Attach directive metadata to nearest rendered block.' });
   if (hasIntent(schema, /(calendar|booking|slots)/) && schema.interactive.selectableItems.length === 0) suggestedRepairs.push({ type: 'add_selectable_items_for_calendar_slots', reason: 'Calendar prompts should expose slot selection items.' });
 
-  const overallScore = Math.round((promptCoverageScore * 0.22) + (directiveExecutionScore * 0.15) + (interactionScore * 0.1) + (responsiveScore * 0.08) + (exportReadinessScore * 0.1) + (visualCompletenessScore * 0.1) + (interactionDepthScore * 0.1) + (stateCoverageScore * 0.07) + (accessibilityScore * 0.04) + (narrativeFlowScore * 0.04));
+  const visualizationPenalty = issues.filter((i)=>['requested_visual_object_missing','marker_layer_missing','animation_controls_missing','dataset_notice_missing','visualization_renderer_missing','generic_copy_mismatch'].includes(i.type)).length * 8;
+  const overallScore = Math.max(0, Math.round((promptCoverageScore * 0.22) + (directiveExecutionScore * 0.15) + (interactionScore * 0.1) + (responsiveScore * 0.08) + (exportReadinessScore * 0.1) + (visualCompletenessScore * 0.1) + (interactionDepthScore * 0.1) + (stateCoverageScore * 0.07) + (accessibilityScore * 0.04) + (narrativeFlowScore * 0.04)) - visualizationPenalty);
 
   return { overallScore, promptCoverageScore, directiveExecutionScore, interactionScore, responsiveScore, exportReadinessScore, visualCompletenessScore, interactionDepthScore, stateCoverageScore, accessibilityScore, narrativeFlowScore, issues, suggestedRepairs };
 }
