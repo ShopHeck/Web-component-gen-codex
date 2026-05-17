@@ -145,3 +145,19 @@ describe('block composition and requirement mapping', () => {
     expect(visualMapped.some((r) => r.targetBlock === 'pricingCards' || r.targetBlock === 'proofStrip')).toBe(true);
   });
 });
+
+describe('visualization domain regression', () => {
+  const prompt = 'an interactive slow spinning globe with glowing markers over every USA military base that exists';
+
+  it('classifies globe prompt as visualization with expected blocks and metadata', () => {
+    const schema = buildSchema(prompt);
+    expect(schema.pattern).toBe('visualization');
+    expect(schema.blocks.some((b) => b.type === 'globeVisualization')).toBe(true);
+    expect(schema.blocks.some((b) => b.type === 'geoMarkerLayer')).toBe(true);
+    expect(schema.blocks.some((b) => b.type === 'animationControls')).toBe(true);
+    expect(schema.blocks.some((b) => b.type === 'datasetNotice' || b.type === 'dataCoverageBadge')).toBe(true);
+    expect(schema.visualization?.visualObject).toBe('globe');
+    expect(schema.visualization?.animation).toContain('spinning');
+    expect(schema.headline.toLowerCase()).not.toContain('interface blueprint');
+  });
+});

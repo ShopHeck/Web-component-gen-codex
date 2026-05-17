@@ -2,7 +2,7 @@ import type { Directive } from './directives';
 import type { EntityPack, NormalizedPrompt, Span } from './entities';
 import type { Pattern, Plan } from '../types/schema';
 
-export type ActionIntent = 'launch' | 'save' | 'send' | 'purchase' | 'book' | 'choose_plan' | 'continue';
+export type ActionIntent = 'launch' | 'save' | 'send' | 'purchase' | 'book' | 'choose_plan' | 'continue' | 'pause_rotation';
 
 type ParseLike = NormalizedPrompt & { pattern: { pattern: Pattern }; entities: EntityPack; directives: Directive[] };
 
@@ -50,6 +50,12 @@ const COPY_TEMPLATES: Record<Pattern, CopyTemplates> = {
     sectionLabel: 'Available times',
     button: 'Book session'
   },
+  visualization: {
+    headline: 'Interactive {product} globe',
+    subhead: 'Explore a local rotating globe with glowing markers and bundled public-location data.',
+    sectionLabel: 'Visualization',
+    button: 'Pause rotation'
+  },
   custom: {
     headline: '{product} interface blueprint',
     subhead: 'Assemble sections, controls, and actions into one clear flow.',
@@ -65,7 +71,8 @@ const INTENT_TEXT: Record<ActionIntent, string> = {
   purchase: 'Complete purchase',
   book: 'Book session',
   choose_plan: 'Choose plan',
-  continue: 'Continue'
+  continue: 'Continue',
+  pause_rotation: 'Pause rotation'
 };
 
 const normalizeCase = (text: string) => text.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -111,6 +118,7 @@ function inferIntent(spans: Span[], pattern: Pattern): ActionIntent {
   if (raw.includes('purchase') || raw.includes('checkout') || raw.includes('buy')) return 'purchase';
   if (raw.includes('book') || raw.includes('schedule')) return 'book';
   if (pattern === 'pricing') return 'choose_plan';
+  if (pattern === 'visualization') return 'pause_rotation';
   return 'continue';
 }
 

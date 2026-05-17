@@ -63,3 +63,12 @@ describe('quality evaluation and safe repairs', () => {
     expect(report.overallScore).toBeGreaterThanOrEqual(80);
   });
 });
+
+it('penalizes visualization quality when globe block is missing', () => {
+  const schema = buildSchema('an interactive slow spinning globe with glowing markers over every USA military base that exists');
+  schema.blocks = schema.blocks.filter((b) => b.type !== 'globeVisualization');
+  schema.requirements.push({ label: 'globe spinning markers USA bases', source: 'manual', bucket: 'visual_intent', status: 'inspector' });
+  const report = evaluateQuality(schema);
+  expect(report.issues.some((i) => i.type === 'visualization_mismatch')).toBe(true);
+  expect(report.suggestedRepairs.some((r) => r.type === 'add_missing_globe_visualization')).toBe(true);
+});
