@@ -5,6 +5,12 @@
 2. Start local app with `npm run dev`.
 3. Confirm app loads with no network/API setup.
 
+## Prompt templates and showcase
+1. Confirm template/showcase section is visible in the left rail.
+2. Click a template and verify prompt text loads into draft prompt.
+3. Click **Use + Generate** and verify schema updates immediately from selected template.
+4. Validate premium pricing template and globe visualization template are both available.
+
 ## Pricing generation/edit/export
 1. Enter a pricing prompt in Draft Prompt.
 2. Click **Generate** and verify pricing cards render.
@@ -13,11 +19,19 @@
 5. Copy export package and verify success feedback.
 6. Download ZIP package and verify start feedback.
 
-## Custom onboarding generation/edit/export
-1. Enter onboarding-focused prompt.
-2. Generate and confirm onboarding steps/proof blocks appear.
-3. Select onboarding block and edit title/items.
-4. Export package (copy + zip) and confirm both feedback messages.
+## Post-generation editing (Studio Editing 2.0)
+1. Generate any prompt and verify selection works on plans/blocks/items/requirements.
+2. Edit selected element from inspector and verify working schema preview updates.
+3. Click **Reset edits** and verify generated output baseline is restored.
+4. Click **Apply safe repairs** and verify edits are applied to working schema.
+5. Export and confirm exported payload reflects edited working schema.
+
+## Visualization generation/edit/export
+1. Generate globe prompt and verify globe/map visualization renders.
+2. Confirm glowing markers are visible and marker selection updates details.
+3. Confirm pause/resume rotation control works.
+4. Confirm marker legend, dataset notice, and data coverage badge render.
+5. Confirm export still succeeds after visualization generation.
 
 ## Settings toggles
 1. Generate prompt with settings controls.
