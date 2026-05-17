@@ -10,7 +10,11 @@ export type QualityIssueType =
   | 'weak_cta'
   | 'low_visual_specificity'
   | 'missing_export_metadata'
-  | 'visualization_mismatch';
+  | 'visualization_mismatch'
+  | 'shallow_interaction'
+  | 'missing_state_coverage'
+  | 'accessibility_intent_missing'
+  | 'weak_narrative_flow';
 
 export type RepairSuggestionType =
   | 'add_missing_billing_toggle'
@@ -24,13 +28,20 @@ export type RepairSuggestionType =
   | 'add_missing_globe_visualization'
   | 'add_missing_geo_marker_layer'
   | 'add_missing_animation_controls'
-  | 'add_missing_dataset_notice';
+  | 'add_missing_dataset_notice'
+  | 'add_missing_empty_state'
+  | 'add_missing_loading_skeleton'
+  | 'add_accessibility_hints';
 
 export type QualityIssue = { type: QualityIssueType; message: string; requirementLabel?: string; source?: string; directive?: string };
 export type RepairSuggestion = { type: RepairSuggestionType; reason: string };
 
 export type QualityReport = {
   overallScore: number;
+  interactionDepthScore: number;
+  stateCoverageScore: number;
+  accessibilityScore: number;
+  narrativeFlowScore: number;
   promptCoverageScore: number;
   directiveExecutionScore: number;
   interactionScore: number;
@@ -102,6 +113,32 @@ export function evaluateQuality(schema: Schema): QualityReport {
     if (!hasBlock(schema, 'datasetNotice') && hasIntent(schema, /(every|all|complete|existing)/)) { issues.push({ type: 'visualization_mismatch', message: 'Dataset completeness notice missing.' }); suggestedRepairs.push({ type: 'add_missing_dataset_notice', reason: 'Comprehensive data request requires local dataset notice.' }); }
   }
 
+  const interactionDepthScore = Math.min(100, 40 + (schema.interactive.selectableItems.length * 12));
+  if (interactionDepthScore < 64) issues.push({ type: 'shallow_interaction', message: 'Interaction depth is shallow for studio-grade quality.' });
+
+  const hasStateIntent = hasIntent(schema, /(loading|empty|error|success|disabled|selected|state)/);
+  const hasStateSurface = schema.requirements.some((r) => /(loading|empty|error|success|disabled|selected)/i.test(r.label)) || schema.directives.some((d) => /(state|loading|error|success|disabled|selected)/i.test(d));
+  const stateCoverageScore = hasStateIntent ? (hasStateSurface ? 90 : 45) : 80;
+  if (hasStateIntent && !hasStateSurface) {
+    issues.push({ type: 'missing_state_coverage', message: 'Prompt includes state intent but schema lacks explicit state surfaces.' });
+    suggestedRepairs.push({ type: 'add_missing_empty_state', reason: 'Include explicit empty state to satisfy prompt state coverage.' });
+    suggestedRepairs.push({ type: 'add_missing_loading_skeleton', reason: 'Include explicit loading skeleton for state coverage.' });
+  }
+
+  const hasA11yIntent = hasIntent(schema, /(a11y|accessible|keyboard|contrast|screen reader|focus)/);
+  const hasA11ySurface = schema.requirements.some((r) => /(a11y|accessible|keyboard|contrast|screen reader|focus)/i.test(r.label))
+    || schema.directives.some((d) => /(a11y|accessible|keyboard|contrast|screen reader|focus)/i.test(d))
+    || schema.custom.body.some((line) => /(keyboard|focus|contrast|screen reader|aria)/i.test(line));
+  const accessibilityScore = hasA11yIntent ? (hasA11ySurface ? 90 : 70) : 82;
+  if (hasA11yIntent && !hasA11ySurface) {
+    issues.push({ type: 'accessibility_intent_missing', message: 'Accessibility intent detected; add explicit a11y hints.' });
+    suggestedRepairs.push({ type: 'add_accessibility_hints', reason: 'Prompt requests accessibility-oriented behavior.' });
+  }
+
+  const hasNarrative = hasBlock(schema, 'hero') && hasBlock(schema, 'ctaBand');
+  const narrativeFlowScore = hasNarrative ? 90 : 55;
+  if (!hasNarrative) issues.push({ type: 'weak_narrative_flow', message: 'Narrative flow should include hero and CTA progression.' });
+
   if (hasIntent(schema, /(enterprise|contact sales|custom plan)/) && !hasBlock(schema, 'enterpriseContact')) {
     issues.push({ type: 'missing_block', message: 'Enterprise intent detected but enterpriseContact block missing.' });
     suggestedRepairs.push({ type: 'add_missing_enterprise_contact', reason: 'Prompt implies sales-assisted plan path.' });
@@ -113,9 +150,9 @@ export function evaluateQuality(schema: Schema): QualityReport {
   if (unexecutedDirectives.length > 0) suggestedRepairs.push({ type: 'attach_directive_to_nearest_block', reason: 'Attach directive metadata to nearest rendered block.' });
   if (hasIntent(schema, /(calendar|booking|slots)/) && schema.interactive.selectableItems.length === 0) suggestedRepairs.push({ type: 'add_selectable_items_for_calendar_slots', reason: 'Calendar prompts should expose slot selection items.' });
 
-  const overallScore = Math.round((promptCoverageScore * 0.3) + (directiveExecutionScore * 0.2) + (interactionScore * 0.15) + (responsiveScore * 0.1) + (exportReadinessScore * 0.15) + (visualCompletenessScore * 0.1));
+  const overallScore = Math.round((promptCoverageScore * 0.22) + (directiveExecutionScore * 0.15) + (interactionScore * 0.1) + (responsiveScore * 0.08) + (exportReadinessScore * 0.1) + (visualCompletenessScore * 0.1) + (interactionDepthScore * 0.1) + (stateCoverageScore * 0.07) + (accessibilityScore * 0.04) + (narrativeFlowScore * 0.04));
 
-  return { overallScore, promptCoverageScore, directiveExecutionScore, interactionScore, responsiveScore, exportReadinessScore, visualCompletenessScore, issues, suggestedRepairs };
+  return { overallScore, promptCoverageScore, directiveExecutionScore, interactionScore, responsiveScore, exportReadinessScore, visualCompletenessScore, interactionDepthScore, stateCoverageScore, accessibilityScore, narrativeFlowScore, issues, suggestedRepairs };
 }
 
 export function applySafeRepairs(schema: Schema, report: QualityReport): Schema {
@@ -129,6 +166,15 @@ export function applySafeRepairs(schema: Schema, report: QualityReport): Schema 
   if (need('add_missing_geo_marker_layer') && !hasBlock(repaired, 'geoMarkerLayer')) repaired.blocks.push({ type: 'geoMarkerLayer', title: 'Geo marker layer', items: ['Location markers'] });
   if (need('add_missing_animation_controls') && !hasBlock(repaired, 'animationControls')) repaired.blocks.push({ type: 'animationControls', title: 'Animation controls', items: ['Pause rotation', 'Resume rotation'] });
   if (need('add_missing_dataset_notice') && !hasBlock(repaired, 'datasetNotice')) repaired.blocks.push({ type: 'datasetNotice', title: 'Dataset notice', items: ['Showing bundled public sample dataset. Replace dataset for complete coverage.'] });
+  if (need('add_missing_empty_state')) {
+    if (!repaired.custom.body.includes('Empty state guidance')) repaired.custom.body.push('Empty state guidance');
+    if (!repaired.requirements.some((r) => /empty state/i.test(r.label))) repaired.requirements.push({ label: 'Empty state guidance', source: 'repair@state', bucket: 'content', status: 'inspector' });
+  }
+  if (need('add_missing_loading_skeleton')) {
+    if (!repaired.custom.body.includes('Loading skeleton state')) repaired.custom.body.push('Loading skeleton state');
+    if (!repaired.requirements.some((r) => /loading skeleton/i.test(r.label))) repaired.requirements.push({ label: 'Loading skeleton state', source: 'repair@state', bucket: 'content', status: 'inspector' });
+  }
+  if (need('add_accessibility_hints') && !repaired.custom.body.includes('Keyboard and focus hints')) repaired.custom.body.push('Keyboard and focus hints');
   if (need('add_custom_requirement_grid_for_unmapped') && !hasBlock(repaired, 'customRequirementGrid')) {
     const labels = repaired.requirements.filter((r) => r.status === 'unmapped').map((r) => r.label);
     repaired.blocks.push({ type: 'customRequirementGrid', title: 'Unmapped requirements', items: labels });

@@ -62,6 +62,26 @@ describe('quality evaluation and safe repairs', () => {
     const report = evaluateQuality(schema);
     expect(report.overallScore).toBeGreaterThanOrEqual(80);
   });
+
+  it('does not emit accessibility_intent_missing when accessibility hints already exist', () => {
+    const schema = buildSchema('Create an accessible pricing page with keyboard and focus guidance.');
+    schema.custom.body.push('Keyboard and focus hints');
+    const report = evaluateQuality(schema);
+    expect(report.issues.some((i) => i.type === 'accessibility_intent_missing')).toBe(false);
+    expect(report.suggestedRepairs.some((r) => r.type === 'add_accessibility_hints')).toBe(false);
+  });
+
+  it('state repairs add requirement surfaces consumed by evaluator', () => {
+    const schema = buildSchema('Create pricing with loading and empty state behavior.');
+    schema.requirements = schema.requirements.filter((r) => !/(loading|empty|state)/i.test(`${r.label} ${r.source}`));
+    schema.directives = schema.directives.filter((d) => !/(loading|empty|state)/i.test(d));
+    schema.requirements.push({ label: 'State handling expectations', source: 'manual', bucket: 'content', status: 'inspector' });
+    const report = evaluateQuality(schema);
+    expect(report.suggestedRepairs.some((r) => r.type === 'add_missing_empty_state')).toBe(true);
+    const repaired = applySafeRepairs(schema, report);
+    const repairedReport = evaluateQuality(repaired);
+    expect(repairedReport.issues.some((i) => i.type === 'missing_state_coverage')).toBe(false);
+  });
 });
 
 it('penalizes visualization quality when globe block is missing', () => {
