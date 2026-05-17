@@ -91,4 +91,6 @@ it('penalizes visualization quality when globe block is missing', () => {
   const report = evaluateQuality(schema);
   expect(report.issues.some((i) => i.type === 'visualization_mismatch')).toBe(true);
   expect(report.suggestedRepairs.some((r) => r.type === 'add_missing_globe_visualization')).toBe(true);
+  expect(report.overallScore).toBeLessThan(75);
+  expect(report.visualCompletenessScore).toBeLessThanOrEqual(48);
 });
