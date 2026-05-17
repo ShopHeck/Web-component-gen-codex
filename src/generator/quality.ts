@@ -9,7 +9,8 @@ export type QualityIssueType =
   | 'missing_responsive_intent'
   | 'weak_cta'
   | 'low_visual_specificity'
-  | 'missing_export_metadata';
+  | 'missing_export_metadata'
+  | 'visualization_mismatch';
 
 export type RepairSuggestionType =
   | 'add_missing_billing_toggle'
@@ -19,7 +20,11 @@ export type RepairSuggestionType =
   | 'add_custom_requirement_grid_for_unmapped'
   | 'move_requirement_to_inspector'
   | 'attach_directive_to_nearest_block'
-  | 'add_selectable_items_for_calendar_slots';
+  | 'add_selectable_items_for_calendar_slots'
+  | 'add_missing_globe_visualization'
+  | 'add_missing_geo_marker_layer'
+  | 'add_missing_animation_controls'
+  | 'add_missing_dataset_notice';
 
 export type QualityIssue = { type: QualityIssueType; message: string; requirementLabel?: string; source?: string; directive?: string };
 export type RepairSuggestion = { type: RepairSuggestionType; reason: string };
@@ -90,6 +95,13 @@ export function evaluateQuality(schema: Schema): QualityReport {
     issues.push({ type: 'missing_block', message: 'Comparison intent detected but comparisonMatrix block missing.' });
     suggestedRepairs.push({ type: 'add_missing_comparison_matrix', reason: 'Prompt implies plan comparison table.' });
   }
+  if (schema.pattern === 'visualization' || hasIntent(schema, /(globe|map|marker|geographic|latitude|longitude|spinning|rotating|orbit)/)) {
+    if (!hasBlock(schema, 'globeVisualization') && hasIntent(schema, /(globe|spinning|rotating|orbit)/)) { issues.push({ type: 'visualization_mismatch', message: 'Requested globe visualization missing.' }); suggestedRepairs.push({ type: 'add_missing_globe_visualization', reason: 'Prompt requests a globe visual object.' }); }
+    if (!hasBlock(schema, 'geoMarkerLayer') && hasIntent(schema, /(marker|location|base|latitude|longitude)/)) { issues.push({ type: 'visualization_mismatch', message: 'Requested geographic marker layer missing.' }); suggestedRepairs.push({ type: 'add_missing_geo_marker_layer', reason: 'Prompt requests marker/location layer.' }); }
+    if (!hasBlock(schema, 'animationControls') && hasIntent(schema, /(spinning|rotating|orbit|animation)/)) { issues.push({ type: 'visualization_mismatch', message: 'Requested animation controls missing.' }); suggestedRepairs.push({ type: 'add_missing_animation_controls', reason: 'Prompt requests spinning/rotating controls.' }); }
+    if (!hasBlock(schema, 'datasetNotice') && hasIntent(schema, /(every|all|complete|existing)/)) { issues.push({ type: 'visualization_mismatch', message: 'Dataset completeness notice missing.' }); suggestedRepairs.push({ type: 'add_missing_dataset_notice', reason: 'Comprehensive data request requires local dataset notice.' }); }
+  }
+
   if (hasIntent(schema, /(enterprise|contact sales|custom plan)/) && !hasBlock(schema, 'enterpriseContact')) {
     issues.push({ type: 'missing_block', message: 'Enterprise intent detected but enterpriseContact block missing.' });
     suggestedRepairs.push({ type: 'add_missing_enterprise_contact', reason: 'Prompt implies sales-assisted plan path.' });
@@ -113,6 +125,10 @@ export function applySafeRepairs(schema: Schema, report: QualityReport): Schema 
   if (need('add_missing_billing_toggle') && !hasBlock(repaired, 'billingToggle')) repaired.blocks.push({ type: 'billingToggle', title: 'Billing cadence', items: ['Monthly', 'Annual'] });
   if (need('add_missing_comparison_matrix') && !hasBlock(repaired, 'comparisonMatrix')) repaired.blocks.push({ type: 'comparisonMatrix', title: 'Comparison matrix', items: repaired.plans.map((p) => p.name) });
   if (need('add_missing_enterprise_contact') && !hasBlock(repaired, 'enterpriseContact')) repaired.blocks.push({ type: 'enterpriseContact', title: 'Enterprise contact', items: ['Talk to sales'] });
+  if (need('add_missing_globe_visualization') && !hasBlock(repaired, 'globeVisualization')) repaired.blocks.push({ type: 'globeVisualization', title: 'Globe visualization', items: ['Local rotating globe'] });
+  if (need('add_missing_geo_marker_layer') && !hasBlock(repaired, 'geoMarkerLayer')) repaired.blocks.push({ type: 'geoMarkerLayer', title: 'Geo marker layer', items: ['Location markers'] });
+  if (need('add_missing_animation_controls') && !hasBlock(repaired, 'animationControls')) repaired.blocks.push({ type: 'animationControls', title: 'Animation controls', items: ['Pause rotation', 'Resume rotation'] });
+  if (need('add_missing_dataset_notice') && !hasBlock(repaired, 'datasetNotice')) repaired.blocks.push({ type: 'datasetNotice', title: 'Dataset notice', items: ['Showing bundled public sample dataset. Replace dataset for complete coverage.'] });
   if (need('add_custom_requirement_grid_for_unmapped') && !hasBlock(repaired, 'customRequirementGrid')) {
     const labels = repaired.requirements.filter((r) => r.status === 'unmapped').map((r) => r.label);
     repaired.blocks.push({ type: 'customRequirementGrid', title: 'Unmapped requirements', items: labels });

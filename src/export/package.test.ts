@@ -87,6 +87,17 @@ describe('Production Export 2.0', () => {
     compileExportPackage('Create a custom onboarding flow with checklist steps, role tailored onboarding, proof strip, and launch CTA.');
   });
 
+
+  it('exports visualization component logic for globe prompts', () => {
+    const schema = buildSchema('an interactive slow spinning globe with glowing markers over every USA military base that exists');
+    const pkg = buildExportPackage(schema, defaultTokens, evaluateQuality(schema));
+    expect(pkg.component.code).toContain("case 'globeVisualization'");
+    expect(pkg.component.code).toContain("case 'geoMarkerLayer'");
+    expect(pkg.component.code).toContain('Pause rotation');
+    expect(pkg.component.code).toContain('usMilitaryBasesSample');
+    expect([schema.headline, schema.subhead].join(' ').toLowerCase()).not.toContain('interface blueprint');
+  });
+
   it('runs export smoke test for settings and security flow', () => {
     compileExportPackage('Create settings and security controls with toggles, chat composer guidance, calendar slot picker, and safe local update CTA.');
   });

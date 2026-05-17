@@ -45,6 +45,9 @@ function componentTsxCode(): string {
 import schemaData from './generatedSchema.json';
 import './GeneratedComponent.css';
 
+const usMilitaryBasesSample = [{ id: 'sample-1', name: 'Fort Bragg', state: 'NC' }, { id: 'sample-2', name: 'Naval Station Norfolk', state: 'VA' }];
+const usMilitaryBasesDatasetNotice = 'Showing bundled public sample dataset. Replace dataset for complete coverage.';
+
 type Schema = {
   blocks: Array<{ type: string; title?: string; items?: string[] }>;
   headline?: string;
@@ -67,6 +70,8 @@ export default function GeneratedComponent() {
     Object.fromEntries((schema.toggles ?? []).map((toggle) => [toggle, false]))
   );
   const [ctaFeedback, setCtaFeedback] = useState('');
+  const [spinPaused, setSpinPaused] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
   const hasBlock = (type: string) => schema.blocks?.some((block) => block.type === type);
   const visiblePlans = useMemo(() => schema.plans ?? [], [schema.plans]);
@@ -129,6 +134,20 @@ export default function GeneratedComponent() {
             return <section key={index}><h2>Chat</h2><ul>{chatLog.map((message, i) => <li key={i}>{message}</li>)}</ul><input value={chatInput} onChange={(e) => setChatInput(e.target.value)} /><button onClick={onSendChat}>Send</button></section>;
           case 'calendarSlots':
             return <section key={index}><h2>Slots</h2>{(schema.slots ?? []).map((slot) => <button key={slot} onClick={() => setSelectedSlot(slot)} data-selected={selectedSlot === slot}>{slot}</button>)}</section>;
+          case 'globeVisualization':
+            return <section key={index}><h2>{block.title ?? 'Globe visualization'}</h2><div className={spinPaused ? 'globe paused' : 'globe spinning'}>🌐</div></section>;
+          case 'mapVisualization':
+            return <section key={index}><h2>{block.title ?? 'Map visualization'}</h2><div className="map-visualization">🗺️ Local map scene</div></section>;
+          case 'geoMarkerLayer':
+            return <section key={index}><h2>{block.title ?? 'Geo marker layer'}</h2><ul>{usMilitaryBasesSample.map((base) => <li key={base.id}><button onClick={() => setSelectedMarker(base.name)}>✦ {base.name} ({base.state})</button></li>)}</ul>{selectedMarker && <small>Selected marker: {selectedMarker}</small>}</section>;
+          case 'markerLegend':
+            return <section key={index}><h2>{block.title ?? 'Marker legend'}</h2><p>Glowing marker = bundled base location.</p></section>;
+          case 'animationControls':
+            return <section key={index}><button onClick={() => setSpinPaused((v) => !v)}>{spinPaused ? 'Resume rotation' : 'Pause rotation'}</button></section>;
+          case 'datasetNotice':
+            return <section key={index}><small>{usMilitaryBasesDatasetNotice}</small></section>;
+          case 'dataCoverageBadge':
+            return <section key={index}><small>Dataset count: {usMilitaryBasesSample.length}</small></section>;
           case 'ctaBand':
             return <section key={index}><button onClick={() => setCtaFeedback('Action completed locally')}>{schema.action}</button>{ctaFeedback && <small>{ctaFeedback}</small>}</section>;
           default:
