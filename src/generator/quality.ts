@@ -99,7 +99,7 @@ export function evaluateQuality(schema: Schema): QualityReport {
   const exportReadinessScore = schema.product && schema.blocks.length > 0 ? 100 : 50;
   if (!schema.product || schema.blocks.length === 0) issues.push({ type: 'missing_export_metadata', message: 'Export metadata is incomplete.' });
 
-  const visualCompletenessScore = (schema.visualDirectives.length > 0 || schema.plans.some((p) => p.visual.glow !== 'none' || p.visual.bevel !== 'none')) ? 92 : 60;
+  let visualCompletenessScore = (schema.visualDirectives.length > 0 || schema.plans.some((p) => p.visual.glow !== 'none' || p.visual.bevel !== 'none')) ? 92 : 60;
   if (schema.visualDirectives.length === 0) issues.push({ type: 'low_visual_specificity', message: 'Visual directives are sparse.' });
 
   if (!hasBlock(schema, 'ctaBand')) { issues.push({ type: 'weak_cta', message: 'Missing CTA band block.' }); suggestedRepairs.push({ type: 'add_missing_cta_band', reason: 'Primary action needs explicit CTA surface.' }); }
@@ -127,6 +127,9 @@ export function evaluateQuality(schema: Schema): QualityReport {
     if (hasIntent(schema, /(every|all|complete|existing)/) && !hasBlock(schema, 'datasetNotice')) issues.push({ type: 'dataset_notice_missing', message: 'Dataset limitation notice missing.' });
     if (!schema.blocks.some((b) => ['globeVisualization','mapVisualization','geoMarkerLayer'].includes(b.type))) issues.push({ type: 'visualization_renderer_missing', message: 'Visualization renderer blocks missing.' });
     if (!/interfaceforge/i.test(schema.generationMeta?.originalPrompt || '') && /interfaceforge globe|interface blueprint/i.test(`${schema.headline} ${schema.subhead}`)) issues.push({ type: 'generic_copy_mismatch', message: 'Generic copy mismatch for visualization prompt.' });
+    const hasStrongVisualObject = hasBlock(schema, 'globeVisualization') || hasBlock(schema, 'mapVisualization');
+    const hasCoreVisualizationControls = hasBlock(schema, 'geoMarkerLayer') && hasBlock(schema, 'animationControls') && hasBlock(schema, 'datasetNotice');
+    if (!hasStrongVisualObject || !hasCoreVisualizationControls) visualCompletenessScore = Math.min(visualCompletenessScore, 48);
   }
 
   const interactionDepthScore = Math.min(100, 40 + (schema.interactive.selectableItems.length * 12));
@@ -166,7 +169,7 @@ export function evaluateQuality(schema: Schema): QualityReport {
   if (unexecutedDirectives.length > 0) suggestedRepairs.push({ type: 'attach_directive_to_nearest_block', reason: 'Attach directive metadata to nearest rendered block.' });
   if (hasIntent(schema, /(calendar|booking|slots)/) && schema.interactive.selectableItems.length === 0) suggestedRepairs.push({ type: 'add_selectable_items_for_calendar_slots', reason: 'Calendar prompts should expose slot selection items.' });
 
-  const visualizationPenalty = issues.filter((i)=>['requested_visual_object_missing','marker_layer_missing','animation_controls_missing','dataset_notice_missing','visualization_renderer_missing','generic_copy_mismatch'].includes(i.type)).length * 8;
+  const visualizationPenalty = issues.filter((i)=>['requested_visual_object_missing','marker_layer_missing','animation_controls_missing','dataset_notice_missing','visualization_renderer_missing','generic_copy_mismatch','visualization_mismatch'].includes(i.type)).length * 11;
   const overallScore = Math.max(0, Math.round((promptCoverageScore * 0.22) + (directiveExecutionScore * 0.15) + (interactionScore * 0.1) + (responsiveScore * 0.08) + (exportReadinessScore * 0.1) + (visualCompletenessScore * 0.1) + (interactionDepthScore * 0.1) + (stateCoverageScore * 0.07) + (accessibilityScore * 0.04) + (narrativeFlowScore * 0.04)) - visualizationPenalty);
 
   return { overallScore, promptCoverageScore, directiveExecutionScore, interactionScore, responsiveScore, exportReadinessScore, visualCompletenessScore, interactionDepthScore, stateCoverageScore, accessibilityScore, narrativeFlowScore, issues, suggestedRepairs };

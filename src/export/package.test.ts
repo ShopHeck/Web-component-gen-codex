@@ -94,6 +94,9 @@ describe('Production Export 2.0', () => {
     expect(pkg.component.code).toContain("case 'globeVisualization'");
     expect(pkg.component.code).toContain("case 'geoMarkerLayer'");
     expect(pkg.component.code).toContain('Pause rotation');
+    expect(pkg.component.code).toContain('Resume rotation');
+    expect(pkg.component.code).toContain('Selected marker:');
+    expect(pkg.component.code).toContain('Dataset count:');
     expect(pkg.component.code).toContain('usMilitaryBasesSample');
     expect([schema.headline, schema.subhead].join(' ').toLowerCase()).not.toContain('interface blueprint');
   });
