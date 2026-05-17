@@ -22,7 +22,12 @@ export type QualityIssueType =
   | 'visualization_renderer_missing'
   | 'generic_copy_mismatch'
   | 'weak_renderer_fidelity'
+  | 'marker_projection_missing'
+  | 'marker_overlap_excessive'
+  | 'missing_spatial_distribution'
   | 'placeholder_visualization'
+  | 'excessive_layout_overflow'
+  | 'oversized_generated_typography'
   | 'missing_core_visual_object'
   | 'missing_requested_data_display'
   | 'missing_visible_interaction';
@@ -182,7 +187,19 @@ export function evaluateQuality(schema: Schema): QualityReport {
   if (unexecutedDirectives.length > 0) suggestedRepairs.push({ type: 'attach_directive_to_nearest_block', reason: 'Attach directive metadata to nearest rendered block.' });
   if (hasIntent(schema, /(calendar|booking|slots)/) && schema.interactive.selectableItems.length === 0) suggestedRepairs.push({ type: 'add_selectable_items_for_calendar_slots', reason: 'Calendar prompts should expose slot selection items.' });
 
-  const visualizationPenalty = issues.filter((i)=>['requested_visual_object_missing','marker_layer_missing','animation_controls_missing','dataset_notice_missing','visualization_renderer_missing','generic_copy_mismatch','visualization_mismatch'].includes(i.type)).length * 11;
+  
+  const hasGlobe = hasBlock(schema, 'globeVisualization');
+  const hasMarkers = hasBlock(schema, 'geoMarkerLayer');
+  const hasControls = hasBlock(schema, 'animationControls');
+  const hasNotice = hasBlock(schema, 'datasetNotice') || hasBlock(schema, 'dataCoverageBadge');
+  if (schema.pattern === 'visualization' && hasIntent(schema, /(globe|map|marker|visualization)/)) {
+    if (!hasGlobe) issues.push({ type: 'weak_renderer_fidelity', message: 'Visualization renderer fidelity is weak without globe surface.' });
+    if (!hasMarkers) issues.push({ type: 'marker_projection_missing', message: 'Spatial marker projection layer is missing.' });
+    if (hasGlobe && !hasControls) issues.push({ type: 'missing_spatial_distribution', message: 'Interactive globe should include rotation controls for spatial context.' });
+    if (!hasNotice) issues.push({ type: 'placeholder_visualization', message: 'Visualization should include sample dataset notice.' });
+  }
+  if (schema.pattern === 'pricing' && schema.headline.length > 42) issues.push({ type: 'oversized_generated_typography', message: 'Headline likely oversized for compact previews.' });
+const visualizationPenalty = issues.filter((i)=>['requested_visual_object_missing','marker_layer_missing','animation_controls_missing','dataset_notice_missing','visualization_renderer_missing','generic_copy_mismatch','visualization_mismatch'].includes(i.type)).length * 11;
   const overallScore = Math.max(0, Math.round((promptCoverageScore * 0.22) + (directiveExecutionScore * 0.15) + (interactionScore * 0.1) + (responsiveScore * 0.08) + (exportReadinessScore * 0.1) + (visualCompletenessScore * 0.1) + (interactionDepthScore * 0.1) + (stateCoverageScore * 0.07) + (accessibilityScore * 0.04) + (narrativeFlowScore * 0.04)) - visualizationPenalty);
 
   return { overallScore, promptCoverageScore, directiveExecutionScore, interactionScore, responsiveScore, exportReadinessScore, visualCompletenessScore, interactionDepthScore, stateCoverageScore, accessibilityScore, narrativeFlowScore, issues, suggestedRepairs };
