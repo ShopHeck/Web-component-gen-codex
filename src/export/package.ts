@@ -45,7 +45,16 @@ function componentTsxCode(): string {
 import schemaData from './generatedSchema.json';
 import './GeneratedComponent.css';
 
-type Schema = typeof schemaData;
+type Schema = {
+  blocks: Array<{ type: string; title?: string; items?: string[] }>;
+  headline?: string;
+  subhead?: string;
+  plans?: Array<{ name: string; annual?: string; price?: string; description?: string; visual?: { featured?: boolean } }>;
+  messages?: string[];
+  toggles?: string[];
+  slots?: string[];
+  action?: string;
+} & Record<string, unknown>;
 
 export default function GeneratedComponent() {
   const schema = schemaData as Schema;
