@@ -75,7 +75,7 @@ describe('quality evaluation and safe repairs', () => {
     const schema = buildSchema('Create pricing with loading and empty state behavior.');
     schema.requirements = schema.requirements.filter((r) => !/(loading|empty|state)/i.test(`${r.label} ${r.source}`));
     schema.directives = schema.directives.filter((d) => !/(loading|empty|state)/i.test(d));
-    schema.requirements.push({ label: 'State handling expectations', source: 'manual', bucket: 'interaction', status: 'inspector' });
+    schema.requirements.push({ label: 'State handling expectations', source: 'manual', bucket: 'content', status: 'inspector' });
     const report = evaluateQuality(schema);
     expect(report.suggestedRepairs.some((r) => r.type === 'add_missing_empty_state')).toBe(true);
     const repaired = applySafeRepairs(schema, report);

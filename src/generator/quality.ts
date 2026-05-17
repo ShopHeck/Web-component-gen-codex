@@ -168,11 +168,11 @@ export function applySafeRepairs(schema: Schema, report: QualityReport): Schema 
   if (need('add_missing_dataset_notice') && !hasBlock(repaired, 'datasetNotice')) repaired.blocks.push({ type: 'datasetNotice', title: 'Dataset notice', items: ['Showing bundled public sample dataset. Replace dataset for complete coverage.'] });
   if (need('add_missing_empty_state')) {
     if (!repaired.custom.body.includes('Empty state guidance')) repaired.custom.body.push('Empty state guidance');
-    if (!repaired.requirements.some((r) => /empty state/i.test(r.label))) repaired.requirements.push({ label: 'Empty state guidance', source: 'repair@state', bucket: 'interaction', status: 'inspector' });
+    if (!repaired.requirements.some((r) => /empty state/i.test(r.label))) repaired.requirements.push({ label: 'Empty state guidance', source: 'repair@state', bucket: 'content', status: 'inspector' });
   }
   if (need('add_missing_loading_skeleton')) {
     if (!repaired.custom.body.includes('Loading skeleton state')) repaired.custom.body.push('Loading skeleton state');
-    if (!repaired.requirements.some((r) => /loading skeleton/i.test(r.label))) repaired.requirements.push({ label: 'Loading skeleton state', source: 'repair@state', bucket: 'interaction', status: 'inspector' });
+    if (!repaired.requirements.some((r) => /loading skeleton/i.test(r.label))) repaired.requirements.push({ label: 'Loading skeleton state', source: 'repair@state', bucket: 'content', status: 'inspector' });
   }
   if (need('add_accessibility_hints') && !repaired.custom.body.includes('Keyboard and focus hints')) repaired.custom.body.push('Keyboard and focus hints');
   if (need('add_custom_requirement_grid_for_unmapped') && !hasBlock(repaired, 'customRequirementGrid')) {
