@@ -42,7 +42,7 @@ function normalizeEffect(raw: string): DirectiveEffect {
   if (/animate|motion|stagger|orbit|parallax|spring|hover/.test(effectRaw)) return 'motion';
   if (/loading|disabled|selected|error|success|empty\s*state/.test(effectRaw)) return 'state';
   if (/glass|neumorphism|minimal|retro|theme/.test(effectRaw)) return 'theme';
-  if (/sticky|hierarchy|priority|emphasis/.test(effectRaw)) return 'hierarchy';
+  if (/sticky|hierarchy|priority/.test(effectRaw)) return 'hierarchy';
   return effectRaw as DirectiveEffect;
 }
 

@@ -126,8 +126,11 @@ export function evaluateQuality(schema: Schema): QualityReport {
   }
 
   const hasA11yIntent = hasIntent(schema, /(a11y|accessible|keyboard|contrast|screen reader|focus)/);
-  const accessibilityScore = hasA11yIntent ? 70 : 82;
-  if (hasA11yIntent) {
+  const hasA11ySurface = schema.requirements.some((r) => /(a11y|accessible|keyboard|contrast|screen reader|focus)/i.test(r.label))
+    || schema.directives.some((d) => /(a11y|accessible|keyboard|contrast|screen reader|focus)/i.test(d))
+    || schema.custom.body.some((line) => /(keyboard|focus|contrast|screen reader|aria)/i.test(line));
+  const accessibilityScore = hasA11yIntent ? (hasA11ySurface ? 90 : 70) : 82;
+  if (hasA11yIntent && !hasA11ySurface) {
     issues.push({ type: 'accessibility_intent_missing', message: 'Accessibility intent detected; add explicit a11y hints.' });
     suggestedRepairs.push({ type: 'add_accessibility_hints', reason: 'Prompt requests accessibility-oriented behavior.' });
   }
@@ -163,8 +166,14 @@ export function applySafeRepairs(schema: Schema, report: QualityReport): Schema 
   if (need('add_missing_geo_marker_layer') && !hasBlock(repaired, 'geoMarkerLayer')) repaired.blocks.push({ type: 'geoMarkerLayer', title: 'Geo marker layer', items: ['Location markers'] });
   if (need('add_missing_animation_controls') && !hasBlock(repaired, 'animationControls')) repaired.blocks.push({ type: 'animationControls', title: 'Animation controls', items: ['Pause rotation', 'Resume rotation'] });
   if (need('add_missing_dataset_notice') && !hasBlock(repaired, 'datasetNotice')) repaired.blocks.push({ type: 'datasetNotice', title: 'Dataset notice', items: ['Showing bundled public sample dataset. Replace dataset for complete coverage.'] });
-  if (need('add_missing_empty_state') && !repaired.custom.body.includes('Empty state guidance')) repaired.custom.body.push('Empty state guidance');
-  if (need('add_missing_loading_skeleton') && !repaired.custom.body.includes('Loading skeleton state')) repaired.custom.body.push('Loading skeleton state');
+  if (need('add_missing_empty_state')) {
+    if (!repaired.custom.body.includes('Empty state guidance')) repaired.custom.body.push('Empty state guidance');
+    if (!repaired.requirements.some((r) => /empty state/i.test(r.label))) repaired.requirements.push({ label: 'Empty state guidance', source: 'repair@state', bucket: 'interaction', status: 'inspector' });
+  }
+  if (need('add_missing_loading_skeleton')) {
+    if (!repaired.custom.body.includes('Loading skeleton state')) repaired.custom.body.push('Loading skeleton state');
+    if (!repaired.requirements.some((r) => /loading skeleton/i.test(r.label))) repaired.requirements.push({ label: 'Loading skeleton state', source: 'repair@state', bucket: 'interaction', status: 'inspector' });
+  }
   if (need('add_accessibility_hints') && !repaired.custom.body.includes('Keyboard and focus hints')) repaired.custom.body.push('Keyboard and focus hints');
   if (need('add_custom_requirement_grid_for_unmapped') && !hasBlock(repaired, 'customRequirementGrid')) {
     const labels = repaired.requirements.filter((r) => r.status === 'unmapped').map((r) => r.label);
