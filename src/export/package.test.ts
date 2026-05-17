@@ -108,6 +108,17 @@ describe('Production Export 2.0', () => {
 });
 
 
+
+it('adds overflow-safe generated classes for pricing in preview/export code', () => {
+  const schema = buildSchema('Create a sleek and modern pricing 4 card pricing display with $79/month $129/month $189/month and $229/month pricing cards.');
+  const pkg = buildExportPackage(schema, defaultTokens, evaluateQuality(schema));
+  expect(pkg.component.css).toContain('.generated-root');
+  expect(pkg.component.css).toContain('.generated-grid');
+  expect(pkg.component.css).toContain('.generated-featured-card');
+  expect(pkg.component.code).toContain('generated-grid four-up');
+  expect(pkg.component.code).toContain('generated-price');
+  expect(pkg.component.code).not.toContain('scale(1.2)');
+});
 it('includes onboarding progress and pricing comparison in export code', () => {
   const schema = buildSchema('Create onboarding steps and pricing comparison matrix with monthly annual plans');
   const pkg = buildExportPackage(schema, defaultTokens, evaluateQuality(schema));
