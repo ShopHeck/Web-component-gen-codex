@@ -14,10 +14,14 @@ import {
 } from './components/AppSections';
 import { moveBlock, resetWorkingSchema, toggleBlockVisibility, type Selection, updateBlock, updateBlockItem, updateDesignToken, updatePlan, updateRequirement } from './editor/schemaEdits';
 import { GeneratedRenderer } from './renderers/GeneratedRenderer';
+import { PROMPT_TEMPLATES, resolveTemplatePrompt } from './generator/templates';
 import type { Tokens, Viewport } from './types/schema';
 
 const defaultPrompt = 'Create a sleek and modern pricing 4 card pricing display with $79/month $129/month $189/month and $229/month pricing cards for a local-first UI component generator called InterfaceForge with neural glow, export-ready code, and a launch CTA. Make the $229/month pricing card stand out by increasing size 20% and adding a subtle glow and 3d bevel effect.';
-const templates: Template[] = [['Neural pricing suite', 'Pricing', defaultPrompt]];
+const templates: Template[] = [
+  ...PROMPT_TEMPLATES.map((t) => [t.name, t.category, resolveTemplatePrompt(t.id, { tone: 'modern', product: 'InterfaceForge', style: 'neural', subject: 'global readiness', audience: 'new teams' }) || t.promptSeed] as Template),
+  ['Neural pricing suite', 'Pricing', defaultPrompt]
+];
 const defaultTokens: Tokens = { text: 'oklch(0.96 0.01 240)', muted: 'oklch(0.76 0.03 240)', button: 'oklch(0.68 0.15 225)', highlight: 'oklch(0.72 0.16 220)', cardBg: 'oklch(0.20 0.02 255 / .74)', cardBorder: 'oklch(0.58 0.07 235 / .34)', radius: 24, buttonRadius: 999, fontScale: 1 };
 
 export default function App() {
@@ -72,13 +76,30 @@ export default function App() {
     setWorkingSchema(resetWorkingSchema(generatedSchema));
     setStatusMessage('Working schema reset to latest generated prompt output.');
   };
+  const useTemplate = (prompt: string, generateNow = false) => {
+    setDraftPrompt(prompt);
+    if (generateNow) {
+      setGeneratedPrompt(prompt);
+      setWorkingSchema(resetWorkingSchema(buildSchema(prompt)));
+      setSelected(null);
+      setStatusMessage('Template applied and generated.');
+    } else {
+      setStatusMessage('Template loaded into draft prompt.');
+    }
+  };
 
   return <main className="app" style={{ '--accent': design.highlight } as React.CSSProperties}><WorkbenchHeader schema={schema} draftPrompt={draftPrompt} generatedPrompt={generatedPrompt} onGenerate={() => {
     setGeneratedPrompt(draftPrompt);
     setWorkingSchema(resetWorkingSchema(buildSchema(draftPrompt)));
     setSelected(null);
     setStatusMessage('Generated prompt locked. Working schema refreshed from draft prompt.');
-  }} /><section className="workspace"><aside className="rail"><Section title="Describe" n="01" /><textarea value={draftPrompt} onChange={(e) => setDraftPrompt(e.target.value)} /><p>Draft prompt is editable. Generate to lock it into the current generated prompt.</p><div className="chips"><Chip label="Pattern" value={draftSchema.pattern} /><Chip label="Strategy" value={draftSchema.strategy} /></div><p>Generated prompt currently used for schema: <strong>{generatedPrompt.slice(0, 72)}{generatedPrompt.length > 72 ? '…' : ''}</strong></p><Section title="Style" n="03" /><StyleControls design={design} setDesign={setDesign} /></aside><section className="canvas"><header className="canvas-head"><div><p>Assembly canvas</p><h2>{schema.pattern === 'pricing' ? 'Pricing System' : title(schema.pattern)}</h2><span>{schema.subhead}</span></div><div className="viewports"><button onClick={() => setViewport('mobile')}><Smartphone size={14} /></button><button onClick={() => setViewport('tablet')}><Tablet size={14} /></button><button onClick={() => setViewport('desktop')}><Monitor size={14} /></button><button onClick={() => setViewport('fluid')}>Auto</button></div></header><div className="stage"><div style={{ width: widths[viewport], maxWidth: '100%' }}><GeneratedRenderer schema={schema} design={design} viewport={viewport} selection={selected} onSelect={setSelected} /></div></div></section><aside className="inspector"><Section title="Critic" n="04" /><div className="score"><strong>{quality.overallScore}</strong><span>Deterministic quality score</span></div><button onClick={onApplySafeRepairs}>Apply safe repairs</button><button onClick={onResetEdits}>Reset edits</button><p>Selected element: {selectedLabel}</p>{selected === null && <p>No selected element. Click any card, block, item, or requirement to edit.</p>}<p>Working schema edits are local and do not change your draft prompt.</p>{statusMessage && <p>{statusMessage}</p>}{selected?.type === 'plan' && <div className="templates"><input value={selectedPlan?.name ?? ''} onChange={(e) => {
+  }} /><section className="workspace"><aside className="rail"><Section title="Describe" n="01" /><textarea value={draftPrompt} onChange={(e) => setDraftPrompt(e.target.value)} /><p>Draft prompt is editable. Generate to lock it into the current generated prompt.</p><div className="chips"><Chip label="Pattern" value={draftSchema.pattern} /><Chip label="Strategy" value={draftSchema.strategy} /></div><Section title="Templates" n="02" /><div className="templates">{templates.map((t) => <button key={t[0]} className={active === t[0] ? 'active' : ''} onClick={() => {
+    setActive(t[0]);
+    useTemplate(t[2], false);
+  }}>{t[0]} <small>{t[1]}</small></button>)}
+    <button onClick={() => useTemplate(defaultPrompt, false)}>Showcase: Premium pricing</button>
+    <button onClick={() => useTemplate('Create an interactive neural globe visualization with glowing markers, marker legend, pause/resume control, dataset notice, and data coverage badge for US military bases.', false)}>Showcase: Globe ops board</button>
+  </div><button className="primary" onClick={() => useTemplate(templates.find((t) => t[0] === active)?.[2] || draftPrompt, true)}>Use + Generate</button><p>Generated prompt currently used for schema: <strong>{generatedPrompt.slice(0, 72)}{generatedPrompt.length > 72 ? '…' : ''}</strong></p><Section title="Style" n="03" /><StyleControls design={design} setDesign={setDesign} /></aside><section className="canvas"><header className="canvas-head"><div><p>Assembly canvas</p><h2>{schema.pattern === 'pricing' ? 'Pricing System' : title(schema.pattern)}</h2><span>{schema.subhead}</span></div><div className="viewports"><button onClick={() => setViewport('mobile')}><Smartphone size={14} /></button><button onClick={() => setViewport('tablet')}><Tablet size={14} /></button><button onClick={() => setViewport('desktop')}><Monitor size={14} /></button><button onClick={() => setViewport('fluid')}>Auto</button></div></header><div className="stage"><div style={{ width: widths[viewport], maxWidth: '100%' }}><GeneratedRenderer schema={schema} design={design} viewport={viewport} selection={selected} onSelect={setSelected} /></div></div></section><aside className="inspector"><Section title="Critic" n="04" /><div className="score"><strong>{quality.overallScore}</strong><span>Deterministic quality score</span></div><button onClick={onApplySafeRepairs}>Apply safe repairs</button><button onClick={onResetEdits}>Reset edits</button><p>Selected element: {selectedLabel}</p>{selected === null && <p>No selected element. Click any card, block, item, or requirement to edit.</p>}<p>Working schema edits are local and do not change your draft prompt.</p>{statusMessage && <p>{statusMessage}</p>}{selected?.type === 'plan' && <div className="templates"><input value={selectedPlan?.name ?? ''} onChange={(e) => {
     const nextName = e.target.value;
     if (!selectedPlan) return;
     setWorkingSchema(updatePlan(schema, selectedPlan.name, { name: nextName }));
