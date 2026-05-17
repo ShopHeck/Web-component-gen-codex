@@ -83,3 +83,10 @@
 3. Confirm featured pricing cards stay inside grid and do not escape canvas.
 4. Confirm CTA text and long prices (for example `$229/month`) wrap without overflow.
 5. Confirm exported package layout matches preview containment behavior.
+
+## Renderer fidelity + density regression checks
+- Verify globe markers are spatially distributed from lat/lon projection and not stacked.
+- Verify far-side globe markers fade/hide while front markers remain luminous.
+- Verify generated components do not overflow horizontally and selected outlines remain visible.
+- Verify tool density: compact header/rails, usable prompt area, larger preview canvas.
+- Verify templates remain available and post-generation editing/quality/export still function.
