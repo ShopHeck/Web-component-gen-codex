@@ -18,6 +18,9 @@ describe('Production Export 2.0', () => {
     expect(pkg.readme).toContain('no backend');
     expect(pkg.packageJson).toContain('react');
     expect(pkg.indexTs).toContain('GeneratedComponent');
+    expect(pkg.tsconfigJson).toContain('"include": [');
+    expect(pkg.tsconfigJson).toContain('"src"');
+    expect(pkg.packageJson).toContain('typescript');
   });
 
   it('contains block rendering logic and local interactions in generated component', () => {
