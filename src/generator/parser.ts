@@ -55,6 +55,8 @@ export function makePlans(ir: ParseIR, prod: string, feats: string[]): Plan[] { 
 export function buildSchema(prompt: string): Schema {
   const optimization = optimizePrompt(prompt);
   const graph = buildIntentGraph(prompt);
+  // Intentionally normalize the raw user prompt (not optimizer output)
+  // to avoid injecting synthetic tokens into downstream intent/feature detection.
   const normalized = normalizePrompt(prompt);
   const ir: ParseIR = { ...normalized, pattern: detectPattern(prompt), entities: extractEntities(prompt), directives: extractDirectives(prompt) };
   const pat = ir.pattern.pattern;
