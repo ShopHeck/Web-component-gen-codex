@@ -37,6 +37,14 @@ function tokenCss(design: Tokens): string {
   color: var(--if-text);
   font-size: calc(15px * var(--if-font-scale));
 }
+.generated-root{width:100%;max-width:100%;min-width:0;overflow-x:auto}
+.generated-grid{display:grid;grid-template-columns:repeat(1,minmax(0,1fr));gap:14px;min-width:0}
+@media(min-width:700px){.generated-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(min-width:1200px){.generated-grid.four-up{grid-template-columns:repeat(4,minmax(0,1fr));}}
+.generated-card{min-width:0;overflow-wrap:anywhere;border:1px solid var(--if-card-border);border-radius:var(--if-radius);padding:16px;background:var(--if-card-bg)}
+.generated-featured-card{border-width:2px;box-shadow:0 18px 44px -32px var(--if-highlight)}
+.generated-cta{max-width:100%;white-space:normal;font-size:clamp(.82rem,.9vw,.95rem)}
+.generated-price{font-size:clamp(1.4rem,2.7vw,2.2rem);line-height:1;word-break:break-word}
 `;
 }
 
@@ -84,7 +92,7 @@ export default function GeneratedComponent() {
   };
 
   return (
-    <div className="generated-component">
+    <div className="generated-component generated-root">
       {schema.blocks.map((block, index) => {
         switch (block.type) {
           case 'hero':
@@ -93,13 +101,13 @@ export default function GeneratedComponent() {
             return (
               <section key={index}>
                 <h2>{block.title ?? 'Plans'}</h2>
-                <div>
+                <div className="generated-grid four-up">
                   {visiblePlans.map((plan) => (
-                    <article key={plan.name} data-selected={selectedPlan === plan.name}>
+                    <article className={'generated-card ' + (plan.visual?.featured ? 'generated-featured-card' : '')} key={plan.name} data-selected={selectedPlan === plan.name}>
                       <h3>{plan.name}</h3>
-                      <p>{billingAnnual ? plan.annual : plan.price}</p>
+                      <p className="generated-price">{billingAnnual ? plan.annual : plan.price}</p>
                       <p>{plan.description}</p>
-                      <button onClick={() => setSelectedPlan(plan.name)}>Select {plan.name}</button>
+                      <button className="generated-cta" onClick={() => setSelectedPlan(plan.name)}>Select {plan.name}</button>
                     </article>
                   ))}
                 </div>

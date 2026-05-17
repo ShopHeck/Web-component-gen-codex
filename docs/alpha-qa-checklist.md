@@ -76,3 +76,10 @@
 - Verify interactions are visible and usable (toggle, pause/resume, send, slot select, checkout CTA).
 - Verify deterministic quality score aligns with apparent output fidelity.
 - Verify exported package preview parity (pricing/globe/onboarding structures) and contains no remote API references.
+
+## Layout containment regression checks (May 17, 2026)
+1. Generate pricing prompt and confirm output fits inside preview viewport with no clipped cards.
+2. Confirm pricing cards do not overflow horizontally in mobile/tablet/desktop/fluid modes.
+3. Confirm featured pricing cards stay inside grid and do not escape canvas.
+4. Confirm CTA text and long prices (for example `$229/month`) wrap without overflow.
+5. Confirm exported package layout matches preview containment behavior.
