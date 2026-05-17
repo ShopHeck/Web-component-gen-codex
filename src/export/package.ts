@@ -136,6 +136,8 @@ export default function GeneratedComponent() {
             return <section key={index}><h2>Slots</h2>{(schema.slots ?? []).map((slot) => <button key={slot} onClick={() => setSelectedSlot(slot)} data-selected={selectedSlot === slot}>{slot}</button>)}</section>;
           case 'globeVisualization':
             return <section key={index}><h2>{block.title ?? 'Globe visualization'}</h2><div className={spinPaused ? 'globe paused' : 'globe spinning'}>🌐</div></section>;
+          case 'mapVisualization':
+            return <section key={index}><h2>{block.title ?? 'Map visualization'}</h2><div className="map-visualization">🗺️ Local map scene</div></section>;
           case 'geoMarkerLayer':
             return <section key={index}><h2>{block.title ?? 'Geo marker layer'}</h2><ul>{usMilitaryBasesSample.map((base) => <li key={base.id}><button onClick={() => setSelectedMarker(base.name)}>✦ {base.name} ({base.state})</button></li>)}</ul>{selectedMarker && <small>Selected marker: {selectedMarker}</small>}</section>;
           case 'markerLegend':
