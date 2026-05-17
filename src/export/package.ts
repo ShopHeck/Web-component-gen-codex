@@ -119,13 +119,13 @@ export default function GeneratedComponent() {
               </section>
             );
           case 'comparisonMatrix':
-            return hasBlock('pricingCards') ? <section key={index}><h2>Comparison matrix</h2></section> : null;
+            return hasBlock('pricingCards') ? <section key={index}><h2>Comparison matrix</h2><div className="if-comparison">{visiblePlans.map((plan) => <p key={plan.name}><span>{plan.name}</span><b>Included</b></p>)}</div></section> : null;
           case 'enterpriseContact':
             return <section key={index}><h2>Enterprise contact</h2><button>Contact sales</button></section>;
           case 'customRequirementGrid':
             return <section key={index}><h2>{block.title ?? 'Custom requirements'}</h2><ul>{(block.items ?? []).map((item) => <li key={item}>{item}</li>)}</ul></section>;
           case 'onboardingSteps':
-            return <section key={index}><h2>{block.title ?? 'Onboarding'}</h2><ol>{(block.items ?? []).map((item) => <li key={item}>{item}</li>)}</ol></section>;
+            return <section key={index}><h2>{block.title ?? 'Onboarding'}</h2><p>Progress 1 / {(block.items ?? []).length || 0}</p><ol>{(block.items ?? []).map((item) => <li key={item}>{item}</li>)}</ol></section>;
           case 'proofStrip':
             return <section key={index}><h2>{block.title ?? 'Proof'}</h2><ul>{(block.items ?? []).map((item) => <li key={item}>{item}</li>)}</ul></section>;
           case 'settingsControls':
@@ -135,7 +135,7 @@ export default function GeneratedComponent() {
           case 'calendarSlots':
             return <section key={index}><h2>Slots</h2>{(schema.slots ?? []).map((slot) => <button key={slot} onClick={() => setSelectedSlot(slot)} data-selected={selectedSlot === slot}>{slot}</button>)}</section>;
           case 'globeVisualization':
-            return <section key={index}><h2>{block.title ?? 'Globe visualization'}</h2><div className={spinPaused ? 'globe paused' : 'globe spinning'}>🌐</div></section>;
+            return <section key={index}><h2>{block.title ?? 'Globe visualization'}</h2><div className={spinPaused ? 'if-globe-shell paused' : 'if-globe-shell spinning'}><svg className="if-globe-svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" /><ellipse cx="60" cy="60" rx="48" ry="20" /></svg></div></section>;
           case 'mapVisualization':
             return <section key={index}><h2>{block.title ?? 'Map visualization'}</h2><div className="map-visualization">🗺️ Local map scene</div></section>;
           case 'geoMarkerLayer':
