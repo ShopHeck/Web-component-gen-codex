@@ -51,7 +51,7 @@ const COPY_TEMPLATES: Record<Pattern, CopyTemplates> = {
     button: 'Book session'
   },
   visualization: {
-    headline: 'Interactive {product} globe',
+    headline: 'Interactive globe visualization',
     subhead: 'Explore a local rotating globe with glowing markers and bundled public-location data.',
     sectionLabel: 'Visualization',
     button: 'Pause rotation'
@@ -138,7 +138,8 @@ export function synthesizeCopy(args: {
   const featureBlend = features.slice(0, 2).map((f) => normalizeCase(f)).join(' and ') || 'clear packaging';
   const firstPrice = ir.entities.prices[0]?.text.replace('/mo', '/month').replace('/yr', '/year') || '$49/month';
 
-  const rawHeadline = template.headline.replace('{product}', titleCase(product));
+  const visualHeadline = pattern === 'visualization' ? (/military base|usa military/.test(ir.normalized) ? 'Interactive USA base globe' : template.headline) : template.headline.replace('{product}', titleCase(product));
+  const rawHeadline = visualHeadline;
   const rawSubhead = template.subhead
     .replace('{tierCount}', String(plans.length || 3))
     .replace('{firstPrice}', firstPrice)

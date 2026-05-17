@@ -9,8 +9,8 @@ const bannedLeakFragments = [
 ];
 
 describe('prompt benchmark fixture suite', () => {
-  it('has 25 realistic fixtures', () => {
-    expect(promptFixtures).toHaveLength(25);
+  it('has 26 realistic fixtures', () => {
+    expect(promptFixtures).toHaveLength(26);
   });
 
   it('meets quality and extraction expectations across fixtures', () => {
@@ -48,6 +48,6 @@ describe('prompt benchmark fixture suite', () => {
   it('produces benchmark summary output', () => {
     const summary = benchmarkSummary(runPromptBenchmark(promptFixtures));
     expect(summary).toContain('InterfaceForge Prompt Benchmark');
-    expect(summary).toContain('25 fixtures');
+    expect(summary).toContain('26 fixtures');
   });
 });
