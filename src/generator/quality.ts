@@ -20,7 +20,12 @@ export type QualityIssueType =
   | 'animation_controls_missing'
   | 'dataset_notice_missing'
   | 'visualization_renderer_missing'
-  | 'generic_copy_mismatch';
+  | 'generic_copy_mismatch'
+  | 'weak_renderer_fidelity'
+  | 'placeholder_visualization'
+  | 'missing_core_visual_object'
+  | 'missing_requested_data_display'
+  | 'missing_visible_interaction';
 
 export type RepairSuggestionType =
   | 'add_missing_billing_toggle'
@@ -120,6 +125,12 @@ export function evaluateQuality(schema: Schema): QualityReport {
   }
 
 
+
+  if (schema.pattern === 'pricing') {
+    const hasPrice = schema.plans.some((p) => /\$/i.test(`${p.price} ${p.annual}`));
+    if (!hasPrice) issues.push({ type: 'missing_requested_data_display', message: 'Pricing cards are missing visible prices.' });
+    if (hasIntent(schema, /(comparison|matrix|compare)/) && !hasBlock(schema, 'comparisonMatrix')) issues.push({ type: 'weak_renderer_fidelity', message: 'Comparison was requested but comparison matrix block is missing.' });
+  }
   if (schema.pattern === 'visualization') {
     if (hasIntent(schema, /(globe|spinning|rotating|orbit)/) && !hasBlock(schema, 'globeVisualization')) issues.push({ type: 'requested_visual_object_missing', message: 'Requested globe visual object missing.' });
     if (hasIntent(schema, /(marker|location|base|latitude|longitude)/) && !hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'marker_layer_missing', message: 'Marker layer missing for requested geo markers.' });
@@ -129,10 +140,12 @@ export function evaluateQuality(schema: Schema): QualityReport {
     if (!/interfaceforge/i.test(schema.generationMeta?.originalPrompt || '') && /interfaceforge globe|interface blueprint/i.test(`${schema.headline} ${schema.subhead}`)) issues.push({ type: 'generic_copy_mismatch', message: 'Generic copy mismatch for visualization prompt.' });
     const hasStrongVisualObject = hasBlock(schema, 'globeVisualization') || hasBlock(schema, 'mapVisualization');
     const hasCoreVisualizationControls = hasBlock(schema, 'geoMarkerLayer') && hasBlock(schema, 'animationControls') && hasBlock(schema, 'datasetNotice');
-    if (!hasStrongVisualObject || !hasCoreVisualizationControls) visualCompletenessScore = Math.min(visualCompletenessScore, 48);
+    if (!hasStrongVisualObject || !hasCoreVisualizationControls) { visualCompletenessScore = Math.min(visualCompletenessScore, 48); issues.push({ type: 'missing_core_visual_object', message: 'Core visualization object or controls are not fully represented.' }); }
+    if (!hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'placeholder_visualization', message: 'Visualization relies on placeholder output without spatial marker layer.' });
   }
 
   const interactionDepthScore = Math.min(100, 40 + (schema.interactive.selectableItems.length * 12));
+  if (hasIntent(schema, /(toggle|switch|select|pause|resume|composer|booking|checkout|send)/) && schema.interactive.selectableItems.length === 0) issues.push({ type: 'missing_visible_interaction', message: 'Prompt asks for interaction but visible interactive controls are weak.' });
   if (interactionDepthScore < 64) issues.push({ type: 'shallow_interaction', message: 'Interaction depth is shallow for studio-grade quality.' });
 
   const hasStateIntent = hasIntent(schema, /(loading|empty|error|success|disabled|selected|state)/);

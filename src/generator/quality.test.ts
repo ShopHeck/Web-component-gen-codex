@@ -94,3 +94,18 @@ it('penalizes visualization quality when globe block is missing', () => {
   expect(report.overallScore).toBeLessThan(75);
   expect(report.visualCompletenessScore).toBeLessThanOrEqual(48);
 });
+
+
+it('flags pricing schemas that miss visible price data', () => {
+  const schema = buildSchema('Create pricing cards with comparison matrix and featured tier');
+  schema.plans = schema.plans.map((p) => ({ ...p, price: 'TBD', annual: 'TBD' }));
+  const report = evaluateQuality(schema);
+  expect(report.issues.some((i) => i.type === 'missing_requested_data_display')).toBe(true);
+});
+
+it('flags visualization placeholders when marker layer is missing', () => {
+  const schema = buildSchema('interactive globe with markers and pause resume control');
+  schema.blocks = schema.blocks.filter((b) => b.type !== 'geoMarkerLayer');
+  const report = evaluateQuality(schema);
+  expect(report.issues.some((i) => i.type === 'placeholder_visualization')).toBe(true);
+});

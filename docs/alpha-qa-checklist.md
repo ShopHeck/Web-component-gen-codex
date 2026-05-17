@@ -69,3 +69,10 @@
 3. Run `npm run build` (TypeScript compile).
 4. Verify generated schema/design tokens/quality report/component/CSS are present.
 5. Confirm no backend/API references in exported files.
+
+## Renderer fidelity polish checks (May 17, 2026)
+- Verify the output visually matches the requested component pattern (not generic placeholder cards).
+- Verify core prompt objects are visible (prices, markers, slots, toggles, composer, order summary, onboarding steps).
+- Verify interactions are visible and usable (toggle, pause/resume, send, slot select, checkout CTA).
+- Verify deterministic quality score aligns with apparent output fidelity.
+- Verify exported package preview parity (pricing/globe/onboarding structures) and contains no remote API references.

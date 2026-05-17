@@ -97,6 +97,7 @@ describe('Production Export 2.0', () => {
     expect(pkg.component.code).toContain('Resume rotation');
     expect(pkg.component.code).toContain('Selected marker:');
     expect(pkg.component.code).toContain('Dataset count:');
+    expect(pkg.component.code).toContain('if-globe-svg');
     expect(pkg.component.code).toContain('usMilitaryBasesSample');
     expect([schema.headline, schema.subhead].join(' ').toLowerCase()).not.toContain('interface blueprint');
   });
@@ -104,4 +105,12 @@ describe('Production Export 2.0', () => {
   it('runs export smoke test for settings and security flow', () => {
     compileExportPackage('Create settings and security controls with toggles, chat composer guidance, calendar slot picker, and safe local update CTA.');
   });
+});
+
+
+it('includes onboarding progress and pricing comparison in export code', () => {
+  const schema = buildSchema('Create onboarding steps and pricing comparison matrix with monthly annual plans');
+  const pkg = buildExportPackage(schema, defaultTokens, evaluateQuality(schema));
+  expect(pkg.component.code).toContain('Progress 1 /');
+  expect(pkg.component.code).toContain('if-comparison');
 });
