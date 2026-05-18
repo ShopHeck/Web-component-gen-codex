@@ -5,12 +5,907 @@ import { projectMarker } from './globeProjection';
 import type { Plan, Schema, Tokens, Viewport } from '../types/schema';
 import type { Selection } from '../editor/schemaEdits';
 
-function planStyle(p:Plan,d:Tokens){const v=p.visual; const shadow=v.glow==='subtle'?`0 0 0 1px ${d.highlight},0 18px 38px -28px ${d.highlight}`:v.glow==='medium'?`0 0 0 1px ${d.highlight},0 28px 60px -30px ${d.highlight}`:v.glow==='strong'?`0 0 0 1px ${d.highlight},0 36px 80px -28px ${d.highlight}`:undefined; return{borderColor:v.featured?d.highlight:d.cardBorder,boxShadow:shadow,background:v.bevel!=='none'?`linear-gradient(145deg,oklch(1 0 0/.14),oklch(1 0 0/.03) 38%,oklch(0 0 0/.16)),${d.cardBg}`:d.cardBg,zIndex:v.featured?2:1,padding:v.featured?'24px':'18px'} as React.CSSProperties}
-function blockStyle(schema:Schema,design:Tokens,target:string){const hits=schema.directives.filter((d)=>d.includes(`${target}:`)||d.includes(`unknown:`)); const glow=hits.some((h)=>h.includes(':glow:')); const bevel=hits.some((h)=>h.includes(':bevel:')); const scaleHit=hits.find((h)=>h.includes(':scale:')); const highlight=hits.some((h)=>h.includes(':highlight:')||h.includes(':emphasis:')); const scaleRaw=scaleHit?.split(':scale:')[1]?.split('@')[0]; const scale=Number(scaleRaw); return{transform:Number.isFinite(scale)?`scale(${scale})`:undefined,boxShadow:glow?`0 0 0 1px ${design.highlight},0 30px 70px -40px ${design.highlight}`:undefined,borderColor:highlight?design.highlight:design.cardBorder,background:bevel?`linear-gradient(145deg,oklch(1 0 0/.14),oklch(1 0 0/.03) 38%,oklch(0 0 0/.16)),${design.cardBg}`:design.cardBg} as React.CSSProperties}
-function useLocalFeedback(durationMs:number){const[status,setStatus]=useState('');const notify=(s:string)=>{setStatus(s);setTimeout(()=>setStatus(''),durationMs)};return{status,notify};}
-function hasBlock(schema:Schema,t:string){return schema.blocks.some((b)=>b.type===t);}
-function blockItems(schema:Schema,t:string){return schema.blocks.find((b)=>b.type===t)?.items||[];}
+function planStyle(p: Plan, d: Tokens) {
+  const v = p.visual;
+  const shadow =
+    v.glow === 'subtle'
+      ? `0 0 0 1px ${d.highlight},0 18px 38px -28px ${d.highlight}`
+      : v.glow === 'medium'
+      ? `0 0 0 1px ${d.highlight},0 28px 60px -30px ${d.highlight}`
+      : v.glow === 'strong'
+      ? `0 0 0 1px ${d.highlight},0 36px 80px -28px ${d.highlight}`
+      : undefined;
+  return {
+    borderColor: v.featured ? d.highlight : d.cardBorder,
+    boxShadow: shadow,
+    background:
+      v.bevel !== 'none'
+        ? `linear-gradient(145deg,oklch(1 0 0/.14),oklch(1 0 0/.03) 38%,oklch(0 0 0/.16)),${d.cardBg}`
+        : d.cardBg,
+    zIndex: v.featured ? 2 : 1,
+    padding: v.featured ? '24px' : '18px',
+  } as React.CSSProperties;
+}
 
-export function GeneratedRenderer({schema,design,viewport,selection,onSelect}:{schema:Schema;design:Tokens;viewport:Viewport;selection:Selection;onSelect:(s:Selection)=>void}){const[billingIndex,setBillingIndex]=useState(0);
-  const [activeKanbanCard,setActiveKanbanCard]=useState('');
- const[toggles,setToggles]=useState<Record<number,boolean>>({}); const[msg,setMsg]=useState(''); const[messages,setMessages]=useState(schema.messages); const[spinPaused,setSpinPaused]=useState(false); const[selectedMarker,setSelectedMarker]=useState(usMilitaryBasesSample[0]?.id||''); const[rotationDegrees,setRotationDegrees]=useState(0); const{status,notify}=useLocalFeedback(schema.interactive.localFeedbackMs); const grid=viewport==='mobile'?'one':viewport==='tablet'?'two':'four'; const runAction=(kind:string,label:string)=>{if(kind==='chat_send'&&msg.trim()){setMessages([...messages,msg]);setMsg('');notify('Message sent');return;} if(kind==='toggle'){notify(`${label} toggled`);return;} if(kind==='slot'){notify(`${label} selected`);return;} if(kind==='checkout'){notify('Order confirmed');return;} notify(`${label} selected`);}; const visualBlock=schema.blocks.find((b)=>b.type==='globeVisualization'||b.type==='mapVisualization'); const hasVisualObject=Boolean(visualBlock); const spinEnabled=(visualBlock?.data?.spinEnabled as boolean|undefined)??true; const spinSpeed=Number(visualBlock?.data?.spinSpeed??26); const markerGlow=(visualBlock?.data?.markerGlow as boolean|undefined)??true; const showLegend=(visualBlock?.data?.showLegend as boolean|undefined)??true; const showDatasetNotice=(visualBlock?.data?.showDatasetNotice as boolean|undefined)??true; const markerColor=String(visualBlock?.data?.markerColor??design.highlight); const selectedBase=usMilitaryBasesSample.find((b)=>b.id===selectedMarker)||usMilitaryBasesSample[0]; useEffect(()=>{if(spinPaused||!spinEnabled)return; let frame=0; let prev=performance.now(); const degPerMs=360/(Math.max(spinSpeed,1)*1000); const tick=(now:number)=>{const elapsed=now-prev; prev=now; setRotationDegrees((deg)=>(deg+elapsed*degPerMs)%360); frame=requestAnimationFrame(tick);}; frame=requestAnimationFrame(tick); return()=>cancelAnimationFrame(frame);},[spinPaused,spinEnabled,spinSpeed]); const projectedMarkers=useMemo(()=>usMilitaryBasesSample.map((base,i)=>{const projection=projectMarker(base.latitude,base.longitude,rotationDegrees,118,160,160); const jitterSeed=Array.from(base.id).reduce((acc,ch)=>acc+ch.charCodeAt(0),0)+i*13; const jitterX=((jitterSeed%9)-4)*0.7; const jitterY=((Math.floor(jitterSeed/7)%9)-4)*0.45; return {base,projection,jitterX,jitterY};}),[rotationDegrees]); const projectedById=useMemo(()=>new Map(projectedMarkers.map((m)=>[m.base.id,m])),[projectedMarkers]); return <section className="generated generated-root generated-scroll-safe" style={{'--text':design.text,'--muted':design.muted,'--button':design.button,'--highlight':design.highlight,'--card-bg':design.cardBg,'--card-border':design.cardBorder,'--radius':`${design.radius}px`,'--button-radius':`${design.buttonRadius}px`,'--font-scale':design.fontScale} as React.CSSProperties}><header className="gen-head"><p>{schema.pattern} / {schema.strategy}</p><h2>{schema.headline}</h2><span>{schema.subhead}</span>{status&&<b className="toast">{status}</b>}</header>{schema.pattern==='pricing'&&<>{hasBlock(schema,'billingToggle')&&<div className="billing"><button onClick={()=>setBillingIndex(0)} className={billingIndex===0?'active':''}>{blockItems(schema,'billingToggle')[0]||'Monthly'}</button><button onClick={()=>setBillingIndex(1)} className={billingIndex===1?'active':''}>{blockItems(schema,'billingToggle')[1]||'Annual'}</button></div>}<div className={`plan-grid generated-grid ${grid}`}>{schema.plans.map((p)=><article className={`plan generated-card ${p.visual.featured?'generated-featured-card':''} ${selection?.type==='plan'&&selection.planId===p.name?'selected-node':''}`} onClick={()=>onSelect({type:'plan',planId:p.name})} key={p.price} style={planStyle(p,design)}>{p.visual.badge&&<em>{p.visual.badge}</em>}<h3>{p.name}</h3><strong>{billingIndex===1?p.annual:p.price}</strong><p>{p.description}</p><ul>{p.features.map(f=><li key={f}>{f}</li>)}</ul><button className="generated-cta" onClick={()=>runAction('plan',p.name)}>{p.visual.featured?'Launch now':'Select plan'}</button></article>)}</div>{hasBlock(schema,'comparisonMatrix')&&<div className="stack"><h3>Comparison matrix</h3>{schema.features.map((f)=><p className="row" key={f}><span>{f}</span><b>Included</b></p>)}</div>}{hasBlock(schema,'enterpriseContact')&&<article className="requirement generated-card"><p>Enterprise</p><b>{blockItems(schema,'enterpriseContact')[0]||'Need custom terms?'}</b><button className="generated-cta" onClick={()=>runAction('custom_cta',blockItems(schema,'enterpriseContact')[0]||'Contact sales')}>{blockItems(schema,'enterpriseContact')[0]||'Contact sales'}</button></article>}{hasBlock(schema,'ctaBand')&&<div className="stack"><button className="generated-cta" onClick={()=>runAction('plan',schema.action)}>{schema.action}</button></div>}</>}{schema.pattern==='dashboard'&&<div className={`metric-grid generated-grid ${grid}`}>{schema.metrics.map(m=><article className="metric generated-card" key={m.label}><p>{m.label}</p><strong>{m.value}</strong><span>{m.delta}</span></article>)}</div>}{schema.pattern==='settings'&&<div className={`card-grid generated-grid ${grid}`}>{schema.toggles.map((t,i)=><article className="row" key={t}><b>{t}</b><button role="switch" aria-checked={toggles[i]??i%2===0} onClick={()=>{setToggles(c=>({...c,[i]:!(c[i]??i%2===0)}));runAction('toggle',t);}} className={(toggles[i]??i%2===0)?'switch on':'switch'}><span/></button></article>)}</div>}{schema.pattern==='chat'&&<div className="chat generated-scroll-safe"><div>{messages.map((m,i)=><p className={i%2?'mine':''} key={`${m}-${i}`}>{m}</p>)}</div><label><input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Type a response"/><button className="generated-cta" onClick={()=>runAction('chat_send','Message')}><Send size={16}/></button></label></div>}{schema.pattern==='calendar'&&<div className={`card-grid generated-grid ${grid}`}>{schema.slots.map(s=><button className="slot generated-card generated-cta" key={s} onClick={()=>runAction('slot',s)}>{s}</button>)}</div>}{schema.pattern==='checkout'&&<div className="stack">{schema.lineItems.map(l=><p className="row" key={l.label}><span>{l.label}</span><b>{l.value}</b></p>)}<button className="generated-cta" onClick={()=>runAction('checkout',schema.action)}>{schema.action}</button></div>}{schema.pattern==='visualization'&&<div className="stack generated-scroll-safe" data-testid="visualization-root">{hasVisualObject&&<article className="requirement generated-card" data-testid={visualBlock?.type==='mapVisualization'?'map-visualization':'globe-visualization'}><p>{visualBlock?.type==='mapVisualization'?'Map visualization':'Globe visualization'}</p><div className="if-globe-scene"><div className={spinPaused||!spinEnabled?'if-globe-shell paused':'if-globe-shell spinning'} style={{animationDuration:`${spinSpeed}s`}}><svg viewBox="0 0 320 320" className="if-globe-svg" role="img" aria-label="Rotating globe visualization"><defs><radialGradient id="if-globe-core" cx="40%" cy="28%"><stop offset="0%" stopColor="oklch(0.92 0.11 225)"/><stop offset="64%" stopColor="oklch(0.49 0.17 246)"/><stop offset="100%" stopColor="oklch(0.28 0.11 260)"/></radialGradient><radialGradient id="if-atmos" cx="50%" cy="50%"><stop offset="74%" stopColor="oklch(0.72 0.11 220 / 0)"/><stop offset="100%" stopColor="oklch(0.78 0.18 226 / 0.42)"/></radialGradient></defs><circle cx="160" cy="160" r="126" fill="url(#if-globe-core)" /><path className="if-land" d="M84 146c20-30 58-44 86-38 16 3 26 16 40 24-14 12-32 18-40 35-8 16-28 26-48 24-24-2-54-19-58-45 1-1 7 1 20 0Z"/><path className="if-land" d="M204 182c20-9 42-2 50 12 8 14-5 31-24 36-22 5-46-10-45-29 0-7 8-14 19-19Z"/><ellipse cx="160" cy="160" rx="126" ry="126" className="if-globe-ring"/><ellipse cx="160" cy="160" rx="98" ry="126" className="if-globe-ring"/><ellipse cx="160" cy="160" rx="62" ry="126" className="if-globe-ring"/><ellipse cx="160" cy="160" rx="126" ry="92" className="if-globe-ring"/><ellipse cx="160" cy="160" rx="126" ry="58" className="if-globe-ring"/><ellipse cx="160" cy="160" rx="126" ry="126" className="if-globe-rim"/><circle cx="160" cy="160" r="140" fill="url(#if-atmos)"/><path className="if-scan" d="M44 176c45 25 184 25 232 0"/></svg>{hasBlock(schema,'geoMarkerLayer')&&usMilitaryBasesSample.map((base,i)=>{const marker=projectedById.get(base.id); if(!marker) return null; const left=(marker.projection.x+marker.jitterX)/3.2; const top=(marker.projection.y+marker.jitterY)/3.2; return <button key={base.id} data-testid="glowing-marker" data-marker-id={base.id} data-projected-x={left.toFixed(2)} data-projected-y={top.toFixed(2)} className={`if-marker ${markerGlow?'glow':''} ${selectedMarker===base.id?'active':''}`} style={{left:`${left}%`,top:`${top}%`,background:markerColor,opacity:marker.projection.depth.opacity,transform:`translate(-50%,-50%) scale(${marker.projection.depth.scale??1})`,display:marker.projection.visible?'block':'none',animationDelay:`${i*120}ms`}} onClick={()=>setSelectedMarker(base.id)} title={`${base.name} (${base.state})`} />})}</div></div>{selectedBase&&<small data-testid="selected-marker">Selected: {selectedBase.name} ({selectedBase.branch}, {selectedBase.state}) · lat {selectedBase.latitude.toFixed(2)}, lon {selectedBase.longitude.toFixed(2)}</small>}</article>}{hasBlock(schema,'animationControls')&&<div className="row"><b>Rotation</b><button data-testid="rotation-toggle" onClick={()=>setSpinPaused((v)=>!v)}>{spinPaused||!spinEnabled?'Resume rotation':'Pause rotation'}</button></div>}{showLegend&&hasBlock(schema,'markerLegend')&&<div className="row" data-testid="marker-legend"><span>Glowing marker = bundled base location</span><b>{usMilitaryBasesSample.length} markers</b></div>}<p className="if-count-badge" data-testid="dataset-count">Dataset markers: {usMilitaryBasesSample.length}</p>{showDatasetNotice&&hasBlock(schema,'datasetNotice')&&<p data-testid="dataset-notice">{usMilitaryBasesDatasetNotice}</p>}{hasBlock(schema,'dataCoverageBadge')&&<p data-testid="coverage-notice"><b>Coverage:</b> public sample, not exhaustive.</p>}{hasBlock(schema,'ctaBand')&&<button onClick={()=>runAction('custom_cta',schema.action)}>{schema.action}</button>}</div>}{['custom'].includes(schema.pattern)&&<>{hasBlock(schema,'onboardingSteps')&&<div className="stack"><h3>Onboarding steps</h3>{blockItems(schema,'onboardingSteps').map((r)=><p key={r}>{r}</p>)}</div>}{hasBlock(schema,'metricGrid')&&<div className={`metric-grid ${grid==='four'?'two':grid}`}><h3>Metrics</h3>{blockItems(schema,'metricGrid').map((m)=><article className="metric generated-card" key={m}><strong>{m}</strong></article>)}</div>}{schema.blocks.some((b)=>b.type==='customRequirementGrid'&&String(b.data?.widget||'')==='kanban')&&<div className="if-kanban" data-testid="kanban-board">{((schema.blocks.find((b)=>b.type==='customRequirementGrid'&&String(b.data?.widget||'')==='kanban')?.data?.columns as Array<{id:string;title:string;cards:string[]}>|undefined)??[]).map((col)=> <article key={col.id} className="generated-card" data-testid="kanban-column"><h3>{col.title}</h3>{col.cards.map((card)=> <button key={card} data-testid="kanban-card" className={activeKanbanCard===card?'generated-card selected-node':''} style={activeKanbanCard===card?{boxShadow:`0 0 0 1px ${design.highlight},0 20px 40px -30px ${design.highlight}`}:{}} onClick={()=>setActiveKanbanCard(card)}>{card}</button>)}<div className="row"><button onClick={()=>notify(`Add card in ${col.title}`)}>+ Add</button><button onClick={()=>notify(`Move card in ${col.title}`)}>Move</button></div></article>)}</div>}<article className="requirement generated-card" style={blockStyle(schema,design,'header')}><p>Header</p><b>{schema.custom.header.join(' · ')||schema.headline}</b><span>Structured intro block</span></article><div className={`card-grid generated-grid ${grid}`} style={blockStyle(schema,design,'body')}>{(hasBlock(schema,'customRequirementGrid')?blockItems(schema,'customRequirementGrid'):schema.custom.body).map(r=><article className="requirement generated-card" key={`body-${r}`}><p>Body card</p><b>{r}</b><span>Rendered from schema</span></article>)}</div>{hasBlock(schema,'activityFeed')&&<div className="stack"><h3>Activity</h3>{blockItems(schema,'activityFeed').map((event)=><p key={event}>{event}</p>)}</div>}<div className={`card-grid ${grid==='four'?'two':grid}`} style={blockStyle(schema,design,'controls')}>{(hasBlock(schema,'settingsControls')?blockItems(schema,'settingsControls'):schema.interactive.selectableItems.map((x)=>x.label)).map((label,i)=><article className="row" key={`${label}-${i}`}><b>{label}</b><button className={`switch ${(schema.interactive.selectableItems.find((x)=>x.label===label)?.selected||false)?'on':''}`} onClick={()=>runAction('toggle',label)}><span/></button></article>)}</div><div className="stack" style={blockStyle(schema,design,'cta_area')}>{(hasBlock(schema,'ctaBand')?blockItems(schema,'ctaBand'):schema.custom.ctas).map((c)=><button key={c} onClick={()=>runAction('custom_cta',c)}>{c}</button>)}<button onClick={()=>runAction('custom_cta',schema.action)}>{schema.action}</button></div></>}</section>}
+function blockStyle(schema: Schema, design: Tokens, target: string) {
+  const hits = schema.directives.filter((d) => d.includes(`${target}:`) || d.includes(`unknown:`));
+  const glow = hits.some((h) => h.includes(':glow:'));
+  const bevel = hits.some((h) => h.includes(':bevel:'));
+  const scaleHit = hits.find((h) => h.includes(':scale:'));
+  const highlight = hits.some((h) => h.includes(':highlight:') || h.includes(':emphasis:'));
+  const scaleRaw = scaleHit?.split(':scale:')[1]?.split('@')[0];
+  const scale = Number(scaleRaw);
+  return {
+    transform: Number.isFinite(scale) ? `scale(${scale})` : undefined,
+    boxShadow: glow ? `0 0 0 1px ${design.highlight},0 30px 70px -40px ${design.highlight}` : undefined,
+    borderColor: highlight ? design.highlight : design.cardBorder,
+    background: bevel
+      ? `linear-gradient(145deg,oklch(1 0 0/.14),oklch(1 0 0/.03) 38%,oklch(0 0 0/.16)),${design.cardBg}`
+      : design.cardBg,
+  } as React.CSSProperties;
+}
+
+function useLocalFeedback(durationMs: number) {
+  const [status, setStatus] = useState('');
+  const notify = (s: string) => {
+    setStatus(s);
+    setTimeout(() => setStatus(''), durationMs);
+  };
+  return { status, notify };
+}
+
+function hasBlock(schema: Schema, t: string) {
+  return schema.blocks.some((b) => b.type === t);
+}
+
+function blockItems(schema: Schema, t: string) {
+  return schema.blocks.find((b) => b.type === t)?.items || [];
+}
+
+export function GeneratedRenderer({
+  schema,
+  design,
+  viewport,
+  selection,
+  onSelect,
+  sandboxState = 'ideal',
+  sandboxTheme = 'default',
+}: {
+  schema: Schema;
+  design: Tokens;
+  viewport: Viewport;
+  selection: Selection;
+  onSelect: (s: Selection) => void;
+  sandboxState?: 'ideal' | 'empty' | 'loading' | 'error';
+  sandboxTheme?: 'default' | 'cyberpunk' | 'glassmorphism' | 'retro';
+}) {
+  const [billingIndex, setBillingIndex] = useState(0);
+  const [activeKanbanCard, setActiveKanbanCard] = useState('');
+  const [toggles, setToggles] = useState<Record<number, boolean>>({});
+  const [msg, setMsg] = useState('');
+  const [messages, setMessages] = useState(schema.messages);
+  const [spinPaused, setSpinPaused] = useState(false);
+  const [selectedMarker, setSelectedMarker] = useState(usMilitaryBasesSample[0]?.id || '');
+  const [rotationDegrees, setRotationDegrees] = useState(0);
+  const { status, notify } = useLocalFeedback(schema.interactive.localFeedbackMs);
+  const grid = viewport === 'mobile' ? 'one' : viewport === 'tablet' ? 'two' : 'four';
+
+  const runAction = (kind: string, label: string) => {
+    if (kind === 'chat_send' && msg.trim()) {
+      setMessages([...messages, msg]);
+      setMsg('');
+      notify('Message sent');
+      return;
+    }
+    if (kind === 'toggle') {
+      notify(`${label} toggled`);
+      return;
+    }
+    if (kind === 'slot') {
+      notify(`${label} selected`);
+      return;
+    }
+    if (kind === 'checkout') {
+      notify('Order confirmed');
+      return;
+    }
+    notify(`${label} selected`);
+  };
+
+  const visualBlock = schema.blocks.find((b) => b.type === 'globeVisualization' || b.type === 'mapVisualization');
+  const hasVisualObject = Boolean(visualBlock);
+  const spinEnabled = (visualBlock?.data?.spinEnabled as boolean | undefined) ?? true;
+  const spinSpeed = Number(visualBlock?.data?.spinSpeed ?? 26);
+  const markerGlow = (visualBlock?.data?.markerGlow as boolean | undefined) ?? true;
+  const showLegend = (visualBlock?.data?.showLegend as boolean | undefined) ?? true;
+  const showDatasetNotice = (visualBlock?.data?.showDatasetNotice as boolean | undefined) ?? true;
+  const markerColor = String(visualBlock?.data?.markerColor ?? design.highlight);
+  const selectedBase = usMilitaryBasesSample.find((b) => b.id === selectedMarker) || usMilitaryBasesSample[0];
+
+  useEffect(() => {
+    if (spinPaused || !spinEnabled || sandboxState !== 'ideal') return;
+    let frame = 0;
+    let prev = performance.now();
+    const degPerMs = 360 / (Math.max(spinSpeed, 1) * 1000);
+    const tick = (now: number) => {
+      const elapsed = now - prev;
+      prev = now;
+      setRotationDegrees((deg) => (deg + elapsed * degPerMs) % 360);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [spinPaused, spinEnabled, spinSpeed, sandboxState]);
+
+  const projectedMarkers = useMemo(() => {
+    return usMilitaryBasesSample.map((base, i) => {
+      const projection = projectMarker(base.latitude, base.longitude, rotationDegrees, 118, 160, 160);
+      const jitterSeed = Array.from(base.id).reduce((acc, ch) => acc + ch.charCodeAt(0), 0) + i * 13;
+      const jitterX = ((jitterSeed % 9) - 4) * 0.7;
+      const jitterY = ((Math.floor(jitterSeed / 7) % 9) - 4) * 0.45;
+      return { base, projection, jitterX, jitterY };
+    });
+  }, [rotationDegrees]);
+
+  const projectedById = useMemo(() => new Map(projectedMarkers.map((m) => [m.base.id, m])), [projectedMarkers]);
+
+  // Loading State Renderer
+  if (sandboxState === 'loading') {
+    return (
+      <section
+        className={`generated generated-root generated-scroll-safe theme-${sandboxTheme}`}
+        style={
+          {
+            '--text': design.text,
+            '--muted': design.muted,
+            '--button': design.button,
+            '--highlight': design.highlight,
+            '--card-bg': design.cardBg,
+            '--card-border': design.cardBorder,
+            '--radius': `${design.radius}px`,
+            '--button-radius': `${design.buttonRadius}px`,
+            '--font-scale': design.fontScale,
+          } as React.CSSProperties
+        }
+      >
+        <div style={{ display: 'grid', gap: '24px', padding: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div className="if-skeleton" style={{ width: '48px', height: '48px', borderRadius: '50%' }}></div>
+            <div style={{ flex: 1, display: 'grid', gap: '8px' }}>
+              <div className="if-skeleton" style={{ width: '40%', height: '14px' }}></div>
+              <div className="if-skeleton" style={{ width: '70%', height: '22px' }}></div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '260px',
+              border: '1px dashed rgba(255,255,255,0.1)',
+              borderRadius: '16px',
+              background: 'rgba(255,255,255,0.01)',
+              padding: '40px',
+              gap: '20px',
+            }}
+          >
+            <div
+              className="if-skeleton"
+              style={{
+                width: '80px',
+                height: '80px',
+                borderRadius: '50%',
+                display: 'grid',
+                placeItems: 'center',
+              }}
+            >
+              <div
+                style={{
+                  width: '60px',
+                  height: '60px',
+                  border: '3px solid var(--highlight)',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'if-spin 1.2s linear infinite',
+                }}
+              ></div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', textAlign: 'center' }}>
+              <h3 style={{ margin: 0, fontFamily: 'monospace', letterSpacing: '0.15em', color: 'var(--highlight)' }}>
+                LOADING TELEMETRY FEED...
+              </h3>
+              <p style={{ margin: 0, fontSize: '13px', opacity: 0.6 }}>Synchronizing satellite constellation vectors</p>
+            </div>
+          </div>
+
+          <div className={`plan-grid generated-grid ${grid}`}>
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="generated-card if-skeleton"
+                style={{
+                  height: '180px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  padding: '20px',
+                }}
+              >
+                <div style={{ display: 'grid', gap: '8px' }}>
+                  <div className="if-skeleton" style={{ width: '30%', height: '12px', background: 'rgba(255,255,255,0.08)' }}></div>
+                  <div className="if-skeleton" style={{ width: '60%', height: '20px', background: 'rgba(255,255,255,0.12)' }}></div>
+                </div>
+                <div className="if-skeleton" style={{ width: '100%', height: '36px', background: 'rgba(255,255,255,0.08)' }}></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Empty State Renderer
+  if (sandboxState === 'empty') {
+    return (
+      <section
+        className={`generated generated-root generated-scroll-safe theme-${sandboxTheme}`}
+        style={
+          {
+            '--text': design.text,
+            '--muted': design.muted,
+            '--button': design.button,
+            '--highlight': design.highlight,
+            '--card-bg': design.cardBg,
+            '--card-border': design.cardBorder,
+            '--radius': `${design.radius}px`,
+            '--button-radius': `${design.buttonRadius}px`,
+            '--font-scale': design.fontScale,
+          } as React.CSSProperties
+        }
+      >
+        <header className="gen-head">
+          <p>{schema.pattern} / EMPTY STATE</p>
+          <h2>{schema.headline}</h2>
+          <span>Status: Telemetry Node Idle</span>
+          {status && <b className="toast">{status}</b>}
+        </header>
+
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minHeight: '340px',
+            border: '1px dashed var(--card-border)',
+            borderRadius: '24px',
+            background: 'var(--card-bg)',
+            padding: '40px',
+            gap: '24px',
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ position: 'relative', width: '80px', height: '80px', display: 'grid', placeItems: 'center' }}>
+            <div
+              style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                border: '1px dashed var(--muted)',
+                borderRadius: '16px',
+                transform: 'rotate(45deg)',
+                opacity: 0.4,
+              }}
+            ></div>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" strokeWidth="1.5">
+              <circle cx="12" cy="12" r="10" />
+              <path d="m4.93 4.93 14.14 14.14" />
+            </svg>
+          </div>
+          <div style={{ display: 'grid', gap: '8px', maxWidth: '380px' }}>
+            <h3 style={{ margin: 0, fontWeight: 700, fontSize: '18px' }}>Active Telemetry Feeds Uninitialized</h3>
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--muted)', lineHeight: 1.5 }}>
+              No active data streams match the selected criteria. Seed simulated telemetry database to begin diagnostic view.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button className="generated-cta" onClick={() => notify('Simulated database seeded')}>
+              Seed Telemetry DB
+            </button>
+            <button
+              className="generated-cta"
+              style={{ background: 'transparent', color: 'var(--text)', border: '1px solid var(--card-border)' }}
+              onClick={() => notify('Connection checklist loaded')}
+            >
+              Run Checklist
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Error State Renderer
+  if (sandboxState === 'error') {
+    return (
+      <section
+        className={`generated generated-root generated-scroll-safe theme-${sandboxTheme}`}
+        style={
+          {
+            '--text': design.text,
+            '--muted': design.muted,
+            '--button': design.button,
+            '--highlight': design.highlight,
+            '--card-bg': design.cardBg,
+            '--card-border': design.cardBorder,
+            '--radius': `${design.radius}px`,
+            '--button-radius': `${design.buttonRadius}px`,
+            '--font-scale': design.fontScale,
+          } as React.CSSProperties
+        }
+      >
+        <header className="gen-head" style={{ borderBottom: '1px solid rgba(239, 68, 68, 0.2)', paddingBottom: '12px' }}>
+          <p style={{ color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.4)', background: 'rgba(239, 68, 68, 0.1)' }}>
+            {schema.pattern} / SYSTEM DIAGNOSTICS
+          </p>
+          <h2 style={{ color: '#ef4444' }}>CRITICAL FEED ERROR</h2>
+          <span>Diagnostic Hash: 0xFD4A87C29E</span>
+          {status && <b className="toast">{status}</b>}
+        </header>
+
+        <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
+          <div
+            style={{
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '16px',
+              background: 'rgba(239, 68, 68, 0.05)',
+              padding: '20px',
+              display: 'flex',
+              gap: '16px',
+              alignItems: 'flex-start',
+            }}
+          >
+            <div
+              style={{
+                display: 'grid',
+                placeItems: 'center',
+                width: '40px',
+                height: '40px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                borderRadius: '50%',
+                color: '#ef4444',
+                flexShrink: 0,
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <div style={{ display: 'grid', gap: '4px' }}>
+              <h4 style={{ margin: 0, color: '#ef4444', fontWeight: 800 }}>Feeds disconnected: Network timeout</h4>
+              <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.4 }}>
+                The client websocket has failed to acknowledge standard heartbeats. Ensure proxy settings allow bidirectional streaming of JSON
+                payloads.
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              background: '#0a0505',
+              border: '1px solid rgba(239, 68, 68, 0.2)',
+              borderRadius: '12px',
+              padding: '16px',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              color: '#fca5a5',
+              overflowX: 'auto',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                borderBottom: '1px solid rgba(239, 68, 68, 0.1)',
+                paddingBottom: '6px',
+                marginBottom: '8px',
+                opacity: 0.6,
+              }}
+            >
+              <span>SIMULATED DIAGNOSTIC LOGS</span>
+              <span>STATUS: FAILED</span>
+            </div>
+            <div style={{ display: 'grid', gap: '4px' }}>
+              <div>
+                <span style={{ opacity: 0.5 }}>[15:19:01]</span> <span style={{ color: '#fb923c' }}>WARN:</span> Jitter variance exceeds standard threshold
+                (+18.4%)
+              </div>
+              <div>
+                <span style={{ opacity: 0.5 }}>[15:19:02]</span> <span style={{ color: '#ef4444' }}>ERR:</span> Geospatial handshake rejected by host (code:
+                403)
+              </div>
+              <div>
+                <span style={{ opacity: 0.5 }}>[15:19:03]</span> <span style={{ color: '#ef4444' }}>FATAL:</span> Telemetry socket connection reset by peer
+              </div>
+              <div>
+                <span style={{ opacity: 0.5 }}>[15:19:03]</span> SYSTEM STATE DUMP SAVED TO LOCAL CACHE
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              className="generated-cta"
+              style={{ background: '#ef4444', color: 'white', boxShadow: '0 0 15px rgba(239, 68, 68, 0.4)' }}
+              onClick={() => notify('Neural core reconnected!')}
+            >
+              Force Reconnect
+            </button>
+            <button
+              className="generated-cta"
+              style={{ background: 'transparent', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)' }}
+              onClick={() => notify('Diagnostic packet sent to system log')}
+            >
+              Submit Component Dump
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Find projected coordinate of currently selected marker for curved telemetries
+  const selectedProj = projectedMarkers.find((m) => m.base.id === selectedMarker && m.projection.visible);
+
+  return (
+    <section
+      className={`generated generated-root generated-scroll-safe theme-${sandboxTheme}`}
+      style={
+        {
+          '--text': design.text,
+          '--muted': design.muted,
+          '--button': design.button,
+          '--highlight': design.highlight,
+          '--card-bg': design.cardBg,
+          '--card-border': design.cardBorder,
+          '--radius': `${design.radius}px`,
+          '--button-radius': `${design.buttonRadius}px`,
+          '--font-scale': design.fontScale,
+        } as React.CSSProperties
+      }
+    >
+      <header className="gen-head">
+        <p>
+          {schema.pattern} / {schema.strategy}
+        </p>
+        <h2>{schema.headline}</h2>
+        <span>{schema.subhead}</span>
+        {status && <b className="toast">{status}</b>}
+      </header>
+
+      {schema.pattern === 'pricing' && (
+        <>
+          {hasBlock(schema, 'billingToggle') && (
+            <div className="billing">
+              <button onClick={() => setBillingIndex(0)} className={billingIndex === 0 ? 'active' : ''}>
+                {blockItems(schema, 'billingToggle')[0] || 'Monthly'}
+              </button>
+              <button onClick={() => setBillingIndex(1)} className={billingIndex === 1 ? 'active' : ''}>
+                {blockItems(schema, 'billingToggle')[1] || 'Annual'}
+              </button>
+            </div>
+          )}
+          <div className={`plan-grid generated-grid ${grid}`}>
+            {schema.plans.map((p) => (
+              <article
+                className={`plan generated-card ${p.visual.featured ? 'generated-featured-card' : ''} ${
+                  selection?.type === 'plan' && selection.planId === p.name ? 'selected-node' : ''
+                }`}
+                onClick={() => onSelect({ type: 'plan', planId: p.name })}
+                key={p.price}
+                style={planStyle(p, design)}
+              >
+                {p.visual.badge && <em>{p.visual.badge}</em>}
+                <h3>{p.name}</h3>
+                <strong>{billingIndex === 1 ? p.annual : p.price}</strong>
+                <p>{p.description}</p>
+                <ul>
+                  {p.features.map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                </ul>
+                <button className="generated-cta" onClick={() => runAction('plan', p.name)}>
+                  {p.visual.featured ? 'Launch now' : 'Select plan'}
+                </button>
+              </article>
+            ))}
+          </div>
+          {hasBlock(schema, 'comparisonMatrix') && (
+            <div className="stack">
+              <h3>Comparison matrix</h3>
+              {schema.features.map((f) => (
+                <p className="row" key={f}>
+                  <span>{f}</span>
+                  <b>Included</b>
+                </p>
+              ))}
+            </div>
+          )}
+          {hasBlock(schema, 'enterpriseContact') && (
+            <article className="requirement generated-card">
+              <p>Enterprise</p>
+              <b>{blockItems(schema, 'enterpriseContact')[0] || 'Need custom terms?'}</b>
+              <button
+                className="generated-cta"
+                onClick={() => runAction('custom_cta', blockItems(schema, 'enterpriseContact')[0] || 'Contact sales')}
+              >
+                {blockItems(schema, 'enterpriseContact')[0] || 'Contact sales'}
+              </button>
+            </article>
+          )}
+          {hasBlock(schema, 'ctaBand') && (
+            <div className="stack">
+              <button className="generated-cta" onClick={() => runAction('plan', schema.action)}>
+                {schema.action}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {schema.pattern === 'dashboard' && (
+        <div className={`metric-grid generated-grid ${grid}`}>
+          {schema.metrics.map((m) => (
+            <article className="metric generated-card" key={m.label}>
+              <p>{m.label}</p>
+              <strong>{m.value}</strong>
+              <span>{m.delta}</span>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {schema.pattern === 'settings' && (
+        <div className={`card-grid generated-grid ${grid}`}>
+          {schema.toggles.map((t, i) => (
+            <article className="row" key={t}>
+              <b>{t}</b>
+              <button
+                role="switch"
+                aria-checked={toggles[i] ?? i % 2 === 0}
+                onClick={() => {
+                  setToggles((c) => ({ ...c, [i]: !(c[i] ?? i % 2 === 0) }));
+                  runAction('toggle', t);
+                }}
+                className={toggles[i] ?? i % 2 === 0 ? 'switch on' : 'switch'}
+              >
+                <span />
+              </button>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {schema.pattern === 'chat' && (
+        <div className="chat generated-scroll-safe">
+          <div>
+            {messages.map((m, i) => (
+              <p className={i % 2 ? 'mine' : ''} key={`${m}-${i}`}>
+                {m}
+              </p>
+            ))}
+          </div>
+          <label>
+            <input value={msg} onChange={(e) => setMsg(e.target.value)} placeholder="Type a response" />
+            <button className="generated-cta" onClick={() => runAction('chat_send', 'Message')}>
+              <Send size={16} />
+            </button>
+          </label>
+        </div>
+      )}
+
+      {schema.pattern === 'calendar' && (
+        <div className={`card-grid generated-grid ${grid}`}>
+          {schema.slots.map((s) => (
+            <button className="slot generated-card generated-cta" key={s} onClick={() => runAction('slot', s)}>
+              {s}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {schema.pattern === 'checkout' && (
+        <div className="stack">
+          {schema.lineItems.map((l) => (
+            <p className="row" key={l.label}>
+              <span>{l.label}</span>
+              <b>{l.value}</b>
+            </p>
+          ))}
+          <button className="generated-cta" onClick={() => runAction('checkout', schema.action)}>
+            {schema.action}
+          </button>
+        </div>
+      )}
+
+      {schema.pattern === 'visualization' && (
+        <div className="stack generated-scroll-safe" data-testid="visualization-root">
+          {hasVisualObject && (
+            <article
+              className="requirement generated-card"
+              data-testid={visualBlock?.type === 'mapVisualization' ? 'map-visualization' : 'globe-visualization'}
+            >
+              <p>{visualBlock?.type === 'mapVisualization' ? 'Map visualization' : 'Globe visualization'}</p>
+              <div className="if-globe-scene">
+                <div
+                  className={spinPaused || !spinEnabled ? 'if-globe-shell paused' : 'if-globe-shell spinning'}
+                  style={{ animationDuration: `${spinSpeed}s` }}
+                >
+                  <svg viewBox="0 0 320 320" className="if-globe-svg" role="img" aria-label="Rotating globe visualization">
+                    <style>{`
+                      @keyframes if-dash {
+                        to {
+                          stroke-dashoffset: -120;
+                        }
+                      }
+                      .if-telemetry-path {
+                        animation: if-dash 2s linear infinite;
+                      }
+                    `}</style>
+                    <defs>
+                      <radialGradient id="if-globe-core" cx="40%" cy="28%">
+                        <stop offset="0%" stopColor="oklch(0.92 0.11 225)" />
+                        <stop offset="64%" stopColor="oklch(0.49 0.17 246)" />
+                        <stop offset="100%" stopColor="oklch(0.28 0.11 260)" />
+                      </radialGradient>
+                      <radialGradient id="if-atmos" cx="50%" cy="50%">
+                        <stop offset="74%" stopColor="oklch(0.72 0.11 220 / 0)" />
+                        <stop offset="100%" stopColor="oklch(0.78 0.18 226 / 0.42)" />
+                      </radialGradient>
+                    </defs>
+                    <circle cx="160" cy="160" r="126" fill="url(#if-globe-core)" />
+                    <path
+                      className="if-land"
+                      d="M84 146c20-30 58-44 86-38 16 3 26 16 40 24-14 12-32 18-40 35-8 16-28 26-48 24-24-2-54-19-58-45 1-1 7 1 20 0Z"
+                    />
+                    <path
+                      className="if-land"
+                      d="M204 182c20-9 42-2 50 12 8 14-5 31-24 36-22 5-46-10-45-29 0-7 8-14 19-19Z"
+                    />
+                    <ellipse cx="160" cy="160" rx="126" ry="126" className="if-globe-ring" />
+                    <ellipse cx="160" cy="160" rx="98" ry="126" className="if-globe-ring" />
+                    <ellipse cx="160" cy="160" rx="62" ry="126" className="if-globe-ring" />
+                    <ellipse cx="160" cy="160" rx="126" ry="92" className="if-globe-ring" />
+                    <ellipse cx="160" cy="160" rx="126" ry="58" className="if-globe-ring" />
+                    <ellipse cx="160" cy="160" rx="126" ry="126" className="if-globe-rim" />
+
+                    {/* Physics-Driven Telemetry Vector Communication Lines */}
+                    {selectedProj &&
+                      projectedMarkers
+                        .filter((m) => m.base.id !== selectedMarker && m.projection.visible)
+                        .slice(0, 3)
+                        .map((target, idx) => {
+                          const x1 = selectedProj.projection.x + selectedProj.jitterX;
+                          const y1 = selectedProj.projection.y + selectedProj.jitterY;
+                          const x2 = target.projection.x + target.jitterX;
+                          const y2 = target.projection.y + target.jitterY;
+
+                          // Elegant outwards curved Bezier arc
+                          const midX = (x1 + x2) / 2;
+                          const midY = (y1 + y2) / 2;
+                          const dx = midX - 160;
+                          const dy = midY - 160;
+                          const len = Math.sqrt(dx * dx + dy * dy);
+                          const offsetX = len > 0 ? (dx / len) * 22 : 0;
+                          const offsetY = len > 0 ? (dy / len) * 22 : 0;
+                          const cx = midX + offsetX;
+                          const cy = midY + offsetY;
+
+                          const pathD = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+
+                          return (
+                            <g key={`telemetry-${target.base.id}-${idx}`}>
+                              {/* Glowing background arc */}
+                              <path
+                                d={pathD}
+                                fill="none"
+                                stroke="var(--highlight)"
+                                strokeWidth="1"
+                                strokeOpacity="0.35"
+                                strokeDasharray="3 3"
+                              />
+                              {/* Pulsing signal traveler curve */}
+                              <path
+                                className="if-telemetry-path"
+                                d={pathD}
+                                fill="none"
+                                stroke="var(--highlight)"
+                                strokeWidth="2.2"
+                                strokeLinecap="round"
+                                strokeOpacity="0.9"
+                                strokeDasharray="14 70"
+                                style={{
+                                  animation: 'if-dash 2s linear infinite',
+                                  animationDelay: `${idx * 400}ms`,
+                                  filter: 'drop-shadow(0 0 3px var(--highlight))',
+                                }}
+                              />
+                            </g>
+                          );
+                        })}
+
+                    <circle cx="160" cy="160" r="140" fill="url(#if-atmos)" />
+                    <path className="if-scan" d="M44 176c45 25 184 25 232 0" />
+                  </svg>
+                  {hasBlock(schema, 'geoMarkerLayer') &&
+                    usMilitaryBasesSample.map((base, i) => {
+                      const marker = projectedById.get(base.id);
+                      if (!marker) return null;
+                      const left = (marker.projection.x + marker.jitterX) / 3.2;
+                      const top = (marker.projection.y + marker.jitterY) / 3.2;
+                      return (
+                        <button
+                          key={base.id}
+                          data-testid="glowing-marker"
+                          data-marker-id={base.id}
+                          data-projected-x={left.toFixed(2)}
+                          data-projected-y={top.toFixed(2)}
+                          className={`if-marker ${markerGlow ? 'glow' : ''} ${selectedMarker === base.id ? 'active' : ''}`}
+                          style={{
+                            left: `${left}%`,
+                            top: `${top}%`,
+                            background: markerColor,
+                            opacity: marker.projection.depth.opacity,
+                            transform: `translate(-50%,-50%) scale(${marker.projection.depth.scale ?? 1})`,
+                            display: marker.projection.visible ? 'block' : 'none',
+                            animationDelay: `${i * 120}ms`,
+                          }}
+                          onClick={() => setSelectedMarker(base.id)}
+                          title={`${base.name} (${base.state})`}
+                        />
+                      );
+                    })}
+                </div>
+              </div>
+              {selectedBase && (
+                <small data-testid="selected-marker">
+                  Selected: {selectedBase.name} ({selectedBase.branch}, {selectedBase.state}) · lat {selectedBase.latitude.toFixed(2)}, lon{' '}
+                  {selectedBase.longitude.toFixed(2)}
+                </small>
+              )}
+            </article>
+          )}
+          {hasBlock(schema, 'animationControls') && (
+            <div className="row">
+              <b>Rotation</b>
+              <button data-testid="rotation-toggle" onClick={() => setSpinPaused((v) => !v)}>
+                {spinPaused || !spinEnabled ? 'Resume rotation' : 'Pause rotation'}
+              </button>
+            </div>
+          )}
+          {showLegend && hasBlock(schema, 'markerLegend') && (
+            <div className="row" data-testid="marker-legend">
+              <span>Glowing marker = bundled base location</span>
+              <b>{usMilitaryBasesSample.length} markers</b>
+            </div>
+          )}
+          <p className="if-count-badge" data-testid="dataset-count">
+            Dataset markers: {usMilitaryBasesSample.length}
+          </p>
+          {showDatasetNotice && hasBlock(schema, 'datasetNotice') && <p data-testid="dataset-notice">{usMilitaryBasesDatasetNotice}</p>}
+          {hasBlock(schema, 'dataCoverageBadge') && (
+            <p data-testid="coverage-notice">
+              <b>Coverage:</b> public sample, not exhaustive.
+            </p>
+          )}
+          {hasBlock(schema, 'ctaBand') && <button onClick={() => runAction('custom_cta', schema.action)}>{schema.action}</button>}
+        </div>
+      )}
+
+      {['custom'].includes(schema.pattern) && (
+        <>
+          {hasBlock(schema, 'onboardingSteps') && (
+            <div className="stack">
+              <h3>Onboarding steps</h3>
+              {blockItems(schema, 'onboardingSteps').map((r) => (
+                <p key={r}>{r}</p>
+              ))}
+            </div>
+          )}
+          {hasBlock(schema, 'metricGrid') && (
+            <div className={`metric-grid ${grid === 'four' ? 'two' : grid}`}>
+              <h3>Metrics</h3>
+              {blockItems(schema, 'metricGrid').map((m) => (
+                <article className="metric generated-card" key={m}>
+                  <strong>{m}</strong>
+                </article>
+              ))}
+            </div>
+          )}
+          {schema.blocks.some((b) => b.type === 'customRequirementGrid' && String(b.data?.widget || '') === 'kanban') && (
+            <div className="if-kanban" data-testid="kanban-board">
+              {(
+                ((
+                  schema.blocks.find((b) => b.type === 'customRequirementGrid' && String(b.data?.widget || '') === 'kanban')?.data
+                    ?.columns as Array<{ id: string; title: string; cards: string[] }> | undefined
+                ) ?? [])
+              ).map((col) => (
+                <article key={col.id} className="generated-card" data-testid="kanban-column">
+                  <h3>{col.title}</h3>
+                  {col.cards.map((card) => (
+                    <button
+                      key={card}
+                      data-testid="kanban-card"
+                      className={activeKanbanCard === card ? 'generated-card selected-node' : ''}
+                      style={
+                        activeKanbanCard === card
+                          ? { boxShadow: `0 0 0 1px ${design.highlight},0 20px 40px -30px ${design.highlight}` }
+                          : {}
+                      }
+                      onClick={() => setActiveKanbanCard(card)}
+                    >
+                      {card}
+                    </button>
+                  ))}
+                  <div className="row">
+                    <button onClick={() => notify(`Add card in ${col.title}`)}>+ Add</button>
+                    <button onClick={() => notify(`Move card in ${col.title}`)}>Move</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+          <article className="requirement generated-card" style={blockStyle(schema, design, 'header')}>
+            <p>Header</p>
+            <b>{schema.custom.header.join(' · ') || schema.headline}</b>
+            <span>Structured intro block</span>
+          </article>
+          <div className={`card-grid generated-grid ${grid}`} style={blockStyle(schema, design, 'body')}>
+            {(hasBlock(schema, 'customRequirementGrid') ? blockItems(schema, 'customRequirementGrid') : schema.custom.body).map((r) => (
+              <article className="requirement generated-card" key={`body-${r}`}>
+                <p>Body card</p>
+                <b>{r}</b>
+                <span>Rendered from schema</span>
+              </article>
+            ))}
+          </div>
+          {hasBlock(schema, 'activityFeed') && (
+            <div className="stack">
+              <h3>Activity</h3>
+              {blockItems(schema, 'activityFeed').map((event) => (
+                <p key={event}>{event}</p>
+              ))}
+            </div>
+          )}
+          <div className={`card-grid ${grid === 'four' ? 'two' : grid}`} style={blockStyle(schema, design, 'controls')}>
+            {(hasBlock(schema, 'settingsControls') ? blockItems(schema, 'settingsControls') : schema.interactive.selectableItems.map((x) => x.label)).map(
+              (label, i) => (
+                <article className="row" key={`${label}-${i}`}>
+                  <b>{label}</b>
+                  <button
+                    className={`switch ${(schema.interactive.selectableItems.find((x) => x.label === label)?.selected || false) ? 'on' : ''}`}
+                    onClick={() => runAction('toggle', label)}
+                  >
+                    <span />
+                  </button>
+                </article>
+              )
+            )}
+          </div>
+          <div className="stack" style={blockStyle(schema, design, 'cta_area')}>
+            {(hasBlock(schema, 'ctaBand') ? blockItems(schema, 'ctaBand') : schema.custom.ctas).map((c) => (
+              <button key={c} onClick={() => runAction('custom_cta', c)}>
+                {c}
+              </button>
+            ))}
+            <button onClick={() => runAction('custom_cta', schema.action)}>{schema.action}</button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

@@ -8,3 +8,133 @@
 
 .if-count-badge{margin:0;font-size:12px;color:var(--muted)}
 .generated{overflow-x:hidden}
+
+/* Custom Sandbox Themes */
+
+/* 1. Cyberpunk Theme */
+.generated.theme-cyberpunk {
+  font-family: 'Space Grotesk', Courier, monospace !important;
+  --text: #00ffcc !important;
+  --muted: #ff0055 !important;
+  --button: #ff0055 !important;
+  --highlight: #00ffcc !important;
+  --card-bg: rgba(6, 6, 12, 0.95) !important;
+  --card-border: rgba(255, 0, 85, 0.5) !important;
+  --radius: 0px !important;
+  --button-radius: 0px !important;
+  background: radial-gradient(circle at 50% 50%, #150020, #030008) !important;
+  border: 2px solid #ff0055 !important;
+  box-shadow: 0 0 20px rgba(255, 0, 85, 0.4), inset 0 0 10px rgba(0, 255, 204, 0.2) !important;
+  position: relative;
+  overflow: hidden;
+}
+.generated.theme-cyberpunk::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 4px, 6px 100%;
+  pointer-events: none;
+  z-index: 10;
+}
+.generated.theme-cyberpunk .generated-card {
+  border: 1px solid #ff0055 !important;
+  box-shadow: 0 0 8px rgba(255, 0, 85, 0.2) !important;
+  background: rgba(15, 5, 25, 0.8) !important;
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px)) !important;
+}
+.generated.theme-cyberpunk .generated-cta {
+  background: #00ffcc !important;
+  color: #030008 !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  border: 1px solid #00ffcc !important;
+  box-shadow: 0 0 15px rgba(0, 255, 204, 0.4) !important;
+}
+.generated.theme-cyberpunk .generated-cta:hover {
+  background: #ff0055 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 20px #ff0055 !important;
+}
+
+/* 2. Glassmorphism Theme */
+.generated.theme-glassmorphism {
+  --text: #ffffff !important;
+  --muted: rgba(255, 255, 255, 0.55) !important;
+  --button: rgba(255, 255, 255, 0.15) !important;
+  --highlight: #ec4899 !important;
+  --card-bg: rgba(255, 255, 255, 0.03) !important;
+  --card-border: rgba(255, 255, 255, 0.08) !important;
+  --radius: 28px !important;
+  --button-radius: 14px !important;
+  background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15), transparent 40%), 
+              radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.15), transparent 40%),
+              rgba(10, 15, 30, 0.7) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.generated.theme-glassmorphism .generated-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3) !important;
+}
+.generated.theme-glassmorphism .generated-cta {
+  background: linear-gradient(135deg, #6366f1, #ec4899) !important;
+  color: white !important;
+  box-shadow: 0 4px 15px rgba(236, 72, 153, 0.3) !important;
+  border: none !important;
+}
+
+/* 3. Retro CRT Theme */
+.generated.theme-retro {
+  font-family: 'Courier New', Courier, monospace !important;
+  --text: #33ff33 !important; /* classic green screen */
+  --muted: #22aa22 !important;
+  --button: #33ff33 !important;
+  --highlight: #33ff33 !important;
+  --card-bg: #051005 !important;
+  --card-border: rgba(51, 255, 51, 0.4) !important;
+  --radius: 4px !important;
+  --button-radius: 4px !important;
+  background: #000800 !important;
+  border: 3px double #33ff33 !important;
+  box-shadow: 0 0 15px rgba(51, 255, 51, 0.3) !important;
+  position: relative;
+}
+.generated.theme-retro .generated-card {
+  background: #020c02 !important;
+  border: 2px solid #33ff33 !important;
+  box-shadow: none !important;
+}
+.generated.theme-retro .generated-cta {
+  background: transparent !important;
+  color: #33ff33 !important;
+  border: 1px solid #33ff33 !important;
+  text-transform: uppercase !important;
+  font-weight: bold !important;
+}
+.generated.theme-retro .generated-cta:hover {
+  background: #33ff33 !important;
+  color: #000800 !important;
+}
+
+/* Shimmer animation for loading skeleton */
+@keyframes if-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.if-skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: if-shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
