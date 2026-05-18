@@ -50,7 +50,10 @@ export const mockProvider: InterfaceProvider = {
 export function validateAISchemaContract(payload: AISchemaContract): string[] {
   const warnings: string[] = [];
   if (!payload.title) warnings.push('Missing title');
-  if (!Array.isArray(payload.blocks)) warnings.push('Missing blocks array');
+  if (!Array.isArray(payload.blocks)) {
+    warnings.push('Missing blocks array');
+    return warnings;
+  }
   payload.blocks.forEach((block) => { if (!SUPPORTED_BLOCKS.has(block.type)) warnings.push(`Unsupported block sanitized: ${block.type}`); });
   return warnings;
 }

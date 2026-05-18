@@ -39,7 +39,8 @@ export default function App() {
 
   const draftSchema = useMemo(() => buildSchema(draftPrompt), [draftPrompt]);
   const generatedSchema = useMemo(() => buildSchema(generatedPrompt), [generatedPrompt]);
-  const [workingSchema, setWorkingSchema] = useState(() => resetWorkingSchema(generatedSchema));
+  const [generatedBaselineSchema, setGeneratedBaselineSchema] = useState(() => resetWorkingSchema(generatedSchema));
+  const [workingSchema, setWorkingSchema] = useState(() => resetWorkingSchema(generatedBaselineSchema));
   const schema = workingSchema;
 
   const quality = useMemo(() => evaluateQuality(schema), [schema]);
@@ -75,14 +76,16 @@ export default function App() {
   };
 
   const onResetEdits = () => {
-    setWorkingSchema(resetWorkingSchema(generatedSchema));
+    setWorkingSchema(resetWorkingSchema(generatedBaselineSchema));
     setStatusMessage('Working schema reset to latest generated prompt output.');
   };
   const useTemplate = (prompt: string, generateNow = false) => {
     setDraftPrompt(prompt);
     if (generateNow) {
       setGeneratedPrompt(prompt);
-      setWorkingSchema(resetWorkingSchema(buildSchema(prompt)));
+      const baseline = resetWorkingSchema(buildSchema(prompt));
+      setGeneratedBaselineSchema(baseline);
+      setWorkingSchema(resetWorkingSchema(baseline));
       setSelected(null);
       setStatusMessage('Template applied and generated.');
     } else {
@@ -94,10 +97,14 @@ export default function App() {
     setGeneratedPrompt(draftPrompt);
     if (assistMode === 'ai-assist') {
       const result = await generateInterfaceFromPrompt(draftPrompt, { mode: 'mock' });
-      setWorkingSchema(resetWorkingSchema(result.schema));
+      const baseline = resetWorkingSchema(result.schema);
+      setGeneratedBaselineSchema(baseline);
+      setWorkingSchema(resetWorkingSchema(baseline));
       setStatusMessage(`AI Assist generated via ${result.provider}${result.warnings.length ? ` (${result.warnings.join('; ')})` : ''}.`);
     } else {
-      setWorkingSchema(resetWorkingSchema(buildSchema(draftPrompt)));
+      const baseline = resetWorkingSchema(buildSchema(draftPrompt));
+      setGeneratedBaselineSchema(baseline);
+      setWorkingSchema(resetWorkingSchema(baseline));
       setStatusMessage('Generated prompt locked. Working schema refreshed from draft prompt.');
     }
     setSelected(null);
