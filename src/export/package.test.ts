@@ -99,7 +99,19 @@ describe('Production Export 2.0', () => {
     expect(pkg.component.code).toContain('Dataset count:');
     expect(pkg.component.code).toContain('if-globe-svg');
     expect(pkg.component.code).toContain('usMilitaryBasesSample');
+    expect(pkg.component.code).toContain('projectMarker');
+    expect(pkg.component.code).toContain('data-projected-x');
+    expect(pkg.component.code).not.toContain('marker-row');
     expect([schema.headline, schema.subhead].join(' ').toLowerCase()).not.toContain('interface blueprint');
+  });
+
+  it('uses projected marker positions instead of static rows', () => {
+    const schema = buildSchema('render globe visualization with marker layer and pause controls');
+    const pkg = buildExportPackage(schema, defaultTokens, evaluateQuality(schema));
+    expect(pkg.component.code).toContain("data-testid=\"globe-visualization\"");
+    expect(pkg.component.code).toContain('if-globe-marker-layer');
+    expect(pkg.component.code).toContain("left: (entry.projection.x + entry.jitterX) + 'px'");
+    expect(pkg.component.code).toContain("top: (entry.projection.y + entry.jitterY) + 'px'");
   });
 
   it('runs export smoke test for settings and security flow', () => {

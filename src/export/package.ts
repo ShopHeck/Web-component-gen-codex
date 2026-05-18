@@ -53,8 +53,18 @@ function componentTsxCode(): string {
 import schemaData from './generatedSchema.json';
 import './GeneratedComponent.css';
 
-const usMilitaryBasesSample = [{ id: 'sample-1', name: 'Fort Bragg', state: 'NC' }, { id: 'sample-2', name: 'Naval Station Norfolk', state: 'VA' }];
+const usMilitaryBasesSample = [{ id: 'fort-bragg', name: 'Fort Bragg', branch: 'Army', state: 'NC', latitude: 35.1417, longitude: -79.0060 }, { id: 'naval-base-san-diego', name: 'Naval Base San Diego', branch: 'Navy', state: 'CA', latitude: 32.6765, longitude: -117.1211 }, { id: 'joint-base-lewis-mcchord', name: 'Joint Base Lewis-McChord', branch: 'Army', state: 'WA', latitude: 47.1009, longitude: -122.5870 }];
 const usMilitaryBasesDatasetNotice = 'Showing bundled public sample dataset. Replace dataset for complete coverage.';
+const degToRad = (deg: number) => (deg * Math.PI) / 180;
+const projectMarker = (lat: number, lon: number, rotationDeg: number, radius: number, centerX: number, centerY: number) => {
+  const latRad = degToRad(lat);
+  const lonRad = degToRad(lon + rotationDeg);
+  const x3 = Math.cos(latRad) * Math.sin(lonRad);
+  const y3 = Math.sin(latRad);
+  const z = Math.cos(latRad) * Math.cos(lonRad);
+  const depth = Math.max(0, Math.min(1, (z + 1) / 2));
+  return { x: centerX + x3 * radius, y: centerY - y3 * radius, z, visible: z >= 0, opacity: 0.2 + depth * 0.8, scale: 0.65 + depth * 0.55 };
+};
 
 type Schema = {
   blocks: Array<{ type: string; title?: string; items?: string[] }>;
@@ -80,9 +90,15 @@ export default function GeneratedComponent() {
   const [ctaFeedback, setCtaFeedback] = useState('');
   const [spinPaused, setSpinPaused] = useState(false);
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
+  const [rotationDeg, setRotationDeg] = useState(0);
 
   const hasBlock = (type: string) => schema.blocks?.some((block) => block.type === type);
   const visiblePlans = useMemo(() => schema.plans ?? [], [schema.plans]);
+  const projectedMarkers = useMemo(() => usMilitaryBasesSample.map((base, index) => {
+    const projection = projectMarker(base.latitude, base.longitude, rotationDeg, 48, 60, 60);
+    const seed = Array.from(base.id).reduce((acc, char) => acc + char.charCodeAt(0), 0) + index * 13;
+    return { base, projection, jitterX: ((seed % 9) - 4) * 0.34, jitterY: ((Math.floor(seed / 7) % 9) - 4) * 0.26 };
+  }), [rotationDeg]);
 
   const onSendChat = () => {
     const msg = chatInput.trim();
@@ -143,15 +159,15 @@ export default function GeneratedComponent() {
           case 'calendarSlots':
             return <section key={index}><h2>Slots</h2>{(schema.slots ?? []).map((slot) => <button key={slot} onClick={() => setSelectedSlot(slot)} data-selected={selectedSlot === slot}>{slot}</button>)}</section>;
           case 'globeVisualization':
-            return <section key={index}><h2>{block.title ?? 'Globe visualization'}</h2><div className={spinPaused ? 'if-globe-shell paused' : 'if-globe-shell spinning'}><svg className="if-globe-svg" viewBox="0 0 120 120"><circle cx="60" cy="60" r="48" /><ellipse cx="60" cy="60" rx="48" ry="20" /></svg></div></section>;
+            return <section key={index} data-testid="globe-visualization"><h2>{block.title ?? 'Globe visualization'}</h2><div className={spinPaused ? 'if-globe-shell paused' : 'if-globe-shell spinning'}><svg className="if-globe-svg" viewBox="0 0 120 120"><defs><radialGradient id="ocean" cx="38%" cy="26%"><stop offset="0%" stopColor="#9ad8ff"/><stop offset="70%" stopColor="#2a52b7"/><stop offset="100%" stopColor="#1b2b7f"/></radialGradient></defs><circle cx="60" cy="60" r="48" fill="url(#ocean)" /><ellipse cx="60" cy="60" rx="48" ry="48" stroke="rgba(186,230,253,.42)" fill="none"/><ellipse cx="60" cy="60" rx="36" ry="48" stroke="rgba(186,230,253,.32)" fill="none"/><ellipse cx="60" cy="60" rx="48" ry="30" stroke="rgba(186,230,253,.32)" fill="none"/></svg></div></section>;
           case 'mapVisualization':
             return <section key={index}><h2>{block.title ?? 'Map visualization'}</h2><div className="map-visualization">🗺️ Local map scene</div></section>;
           case 'geoMarkerLayer':
-            return <section key={index}><h2>{block.title ?? 'Geo marker layer'}</h2><ul>{usMilitaryBasesSample.map((base) => <li key={base.id}><button onClick={() => setSelectedMarker(base.name)}>✦ {base.name} ({base.state})</button></li>)}</ul>{selectedMarker && <small>Selected marker: {selectedMarker}</small>}</section>;
+            return <section key={index}><h2>{block.title ?? 'Geo marker layer'}</h2><div className="if-globe-marker-layer">{projectedMarkers.map((entry) => <button key={entry.base.id} data-marker-id={entry.base.id} data-projected-x={(entry.projection.x + entry.jitterX).toFixed(2)} data-projected-y={(entry.projection.y + entry.jitterY).toFixed(2)} onClick={() => setSelectedMarker(entry.base.id)} style={{ position: 'relative', left: (entry.projection.x + entry.jitterX) + 'px', top: (entry.projection.y + entry.jitterY) + 'px', opacity: entry.projection.opacity, transform: 'scale(' + entry.projection.scale + ')', display: entry.projection.visible ? 'inline-block' : 'none' }}>✦ {entry.base.name} ({entry.base.state})</button>)}</div>{selectedMarker && <small>Selected marker: {selectedMarker}</small>}</section>;
           case 'markerLegend':
             return <section key={index}><h2>{block.title ?? 'Marker legend'}</h2><p>Glowing marker = bundled base location.</p></section>;
           case 'animationControls':
-            return <section key={index}><button onClick={() => setSpinPaused((v) => !v)}>{spinPaused ? 'Resume rotation' : 'Pause rotation'}</button></section>;
+            return <section key={index}><button onClick={() => { setSpinPaused((v) => !v); setRotationDeg((deg) => (deg + 32) % 360); }}>{spinPaused ? 'Resume rotation' : 'Pause rotation'}</button></section>;
           case 'datasetNotice':
             return <section key={index}><small>{usMilitaryBasesDatasetNotice}</small></section>;
           case 'dataCoverageBadge':
