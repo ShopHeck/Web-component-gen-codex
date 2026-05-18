@@ -1,7 +1,7 @@
 import type { Span } from './entities';
 
 export type DirectiveTarget = 'final_card' | 'premium_plan' | 'card' | 'header' | 'body' | 'controls' | 'cta_area' | 'visualization' | 'unknown';
-export type DirectiveEffect = 'scale' | 'glow' | 'bevel' | 'highlight' | 'emphasis' | 'motion' | 'state' | 'theme' | 'hierarchy';
+export type DirectiveEffect = 'scale' | 'glow' | 'bevel' | 'highlight' | 'emphasis' | 'motion' | 'state' | 'theme' | 'hierarchy' | 'stagger' | 'parallax' | 'spring' | 'fade' | 'slide';
 export type Directive = {
   raw: string;
   target: DirectiveTarget;
@@ -39,7 +39,12 @@ function normalizeEffect(raw: string): DirectiveEffect {
   const effectRaw = raw.toLowerCase();
   if (['stand out', 'spotlight'].includes(effectRaw)) return 'highlight';
   if (['bigger', 'larger', 'size', 'dominant'].includes(effectRaw)) return 'scale';
-  if (/animate|motion|stagger|orbit|parallax|spring|hover/.test(effectRaw)) return 'motion';
+  if (/stagger/.test(effectRaw)) return 'stagger';
+  if (/parallax/.test(effectRaw)) return 'parallax';
+  if (/spring|bounce/.test(effectRaw)) return 'spring';
+  if (/fade/.test(effectRaw)) return 'fade';
+  if (/slide/.test(effectRaw)) return 'slide';
+  if (/animate|motion|hover/.test(effectRaw)) return 'motion';
   if (/loading|disabled|selected|error|success|empty\s*state/.test(effectRaw)) return 'state';
   if (/glass|neumorphism|minimal|retro|theme/.test(effectRaw)) return 'theme';
   if (/sticky|hierarchy|priority/.test(effectRaw)) return 'hierarchy';
@@ -49,7 +54,7 @@ function normalizeEffect(raw: string): DirectiveEffect {
 export function extractDirectives(prompt: string): Directive[] {
   const lower = prompt.toLowerCase();
   const hits: Directive[] = [];
-  const directiveRegex = /(final\s+card|premium|\d+(?:st|nd|rd|th)\s+card|named\s+\w+\s+plan|card|hero|header|cta|button|globe|map)?[^.\n,;]*(scale|size|glow|bevel|highlight|emphasis|stand out|bigger|larger|animate|motion|stagger|orbit|parallax|spring|hover|loading|disabled|selected|error|success|glass|neumorphism|minimal|theme|sticky|hierarchy|priority)[^.\n]*/gi;
+  const directiveRegex = /(final\s+card|premium|\d+(?:st|nd|rd|th)\s+card|named\s+\w+\s+plan|card|hero|header|cta|button|globe|map)?[^.\n,;]*(scale|size|glow|bevel|highlight|emphasis|stand out|bigger|larger|animate|motion|stagger|orbit|parallax|spring|fade|slide|hover|loading|disabled|selected|error|success|glass|neumorphism|minimal|theme|sticky|hierarchy|priority)[^.\n]*/gi;
   for (const m of prompt.matchAll(directiveRegex)) {
     const raw = (m[0] || '').trim();
     if (!raw) continue;

@@ -61,6 +61,54 @@ const COPY_TEMPLATES: Record<Pattern, CopyTemplates> = {
     subhead: 'Assemble sections, controls, and actions into one clear flow.',
     sectionLabel: 'Highlights',
     button: 'Continue'
+  },
+  kanban: {
+    headline: '{product} project board',
+    subhead: 'Organize tasks and track progress visually.',
+    sectionLabel: 'Project Board',
+    button: 'Add Task'
+  },
+  onboarding: {
+    headline: 'Welcome to {product}',
+    subhead: 'Get set up quickly with a guided workflow.',
+    sectionLabel: 'Onboarding',
+    button: 'Continue'
+  },
+  editor: {
+    headline: '{product} interactive playground',
+    subhead: 'Write, preview, and test code instantly.',
+    sectionLabel: 'Code Editor',
+    button: 'Run code'
+  },
+  terminal: {
+    headline: '{product} trading terminal',
+    subhead: 'Monitor markets and execute trades instantly.',
+    sectionLabel: 'Trading Terminal',
+    button: 'Execute trade'
+  },
+  social: {
+    headline: '{product} social command center',
+    subhead: 'Track performance across every platform and reply faster.',
+    sectionLabel: 'Social Overview',
+    button: 'Boost post'
+  },
+  orchestrator: {
+    headline: '{product} agent orchestration',
+    subhead: 'Monitor, control, and optimize every AI pipeline in real time.',
+    sectionLabel: 'Agent Control',
+    button: 'Deploy agent'
+  },
+  health: {
+    headline: '{product} health dashboard',
+    subhead: 'Track your daily metrics and hit your goals week by week.',
+    sectionLabel: 'Today\'s Stats',
+    button: 'Log workout'
+  },
+  admin: {
+    headline: '{product} admin panel',
+    subhead: 'Manage tenants, feature access, billing, and security from one place.',
+    sectionLabel: 'Admin Overview',
+    button: 'Save changes'
   }
 };
 
@@ -136,7 +184,7 @@ export function synthesizeCopy(args: {
   const metricFocus = titleCase(ir.entities.metrics[0]?.text || 'key metrics');
   const controlFocus = titleCase(ir.entities.fields[0]?.text || 'critical preferences');
   const featureBlend = features.slice(0, 2).map((f) => normalizeCase(f)).join(' and ') || 'clear packaging';
-  const firstPrice = ir.entities.prices[0]?.text.replace('/mo', '/month').replace('/yr', '/year') || '$49/month';
+  const firstPrice = ir.entities.prices[0]?.text.replace(/\/mo\b/, '/month').replace(/\/yr\b/, '/year') || '$49/month';
 
   const visualHeadline = pattern === 'visualization' ? (/military base|usa military/.test(ir.normalized) ? 'Interactive USA base globe' : template.headline) : template.headline.replace('{product}', titleCase(product));
   const rawHeadline = visualHeadline;

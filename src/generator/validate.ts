@@ -19,3 +19,24 @@ export function validateMappings(required: Span[], schema: SchemaLike): Validati
     .filter((token) => !haystack.includes(token.text.toLowerCase()))
     .map((token) => ({ label: token.text, source: `${token.start}-${token.end}`, reason: 'detected_token_unmapped' }));
 }
+
+// Runtime strict schema validation
+export function validateSchema(schema: any): void {
+  const missing = [];
+  if (!schema.pattern) missing.push('pattern');
+  if (!schema.strategy) missing.push('strategy');
+  if (!schema.product) missing.push('product');
+  if (!schema.headline) missing.push('headline');
+  if (!schema.action) missing.push('action');
+  if (!schema.blocks || schema.blocks.length === 0) missing.push('blocks');
+
+  if (missing.length > 0) {
+    console.warn(`[Strict Schema Validation] Missing required properties: ${missing.join(', ')}`);
+    schema.requirements.push({
+      label: `SCHEMA_ERROR: Missing [${missing.join(', ')}]`,
+      source: 'strict_schema_validation',
+      bucket: 'content',
+      status: 'unmapped'
+    });
+  }
+}

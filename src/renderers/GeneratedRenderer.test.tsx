@@ -17,6 +17,7 @@ describe('GeneratedRenderer globe visualization', () => {
     expect(html).toContain('data-testid="selected-marker"');
     expect(html).toContain('data-projected-x=');
     expect(html).toContain('data-projected-y=');
+    expect((html.match(/data-testid="globe-dot"/g) || []).length).toBeGreaterThan(100);
     expect(html).not.toContain('marker-row');
   });
 });

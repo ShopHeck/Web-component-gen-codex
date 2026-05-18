@@ -86,6 +86,7 @@ function directiveExecuted(schema: Schema, directive: string): boolean {
 export function evaluateQuality(schema: Schema): QualityReport {
   const issues: QualityIssue[] = [];
   const suggestedRepairs: RepairSuggestion[] = [];
+  const isGeoVis = schema.pattern === 'visualization' && !hasBlock(schema, 'dataVisualization');
 
   const rendered = schema.requirements.filter((r) => r.status === 'rendered').length;
   const inspector = schema.requirements.filter((r) => r.status === 'inspector').length;
@@ -122,7 +123,7 @@ export function evaluateQuality(schema: Schema): QualityReport {
     issues.push({ type: 'missing_block', message: 'Comparison intent detected but comparisonMatrix block missing.' });
     suggestedRepairs.push({ type: 'add_missing_comparison_matrix', reason: 'Prompt implies plan comparison table.' });
   }
-  if (schema.pattern === 'visualization' || hasIntent(schema, /(globe|map|marker|geographic|latitude|longitude|spinning|rotating|orbit)/)) {
+  if (isGeoVis || (schema.pattern === 'visualization' && hasIntent(schema, /(globe|map|marker|geographic|latitude|longitude|spinning|rotating|orbit)/) && !hasBlock(schema, 'dataVisualization'))) {
     if (!hasBlock(schema, 'globeVisualization') && hasIntent(schema, /(globe|spinning|rotating|orbit)/)) { issues.push({ type: 'visualization_mismatch', message: 'Requested globe visualization missing.' }); suggestedRepairs.push({ type: 'add_missing_globe_visualization', reason: 'Prompt requests a globe visual object.' }); }
     if (!hasBlock(schema, 'geoMarkerLayer') && hasIntent(schema, /(marker|location|base|latitude|longitude)/)) { issues.push({ type: 'visualization_mismatch', message: 'Requested geographic marker layer missing.' }); suggestedRepairs.push({ type: 'add_missing_geo_marker_layer', reason: 'Prompt requests marker/location layer.' }); }
     if (!hasBlock(schema, 'animationControls') && hasIntent(schema, /(spinning|rotating|orbit|animation)/)) { issues.push({ type: 'visualization_mismatch', message: 'Requested animation controls missing.' }); suggestedRepairs.push({ type: 'add_missing_animation_controls', reason: 'Prompt requests spinning/rotating controls.' }); }
@@ -137,16 +138,22 @@ export function evaluateQuality(schema: Schema): QualityReport {
     if (hasIntent(schema, /(comparison|matrix|compare)/) && !hasBlock(schema, 'comparisonMatrix')) issues.push({ type: 'weak_renderer_fidelity', message: 'Comparison was requested but comparison matrix block is missing.' });
   }
   if (schema.pattern === 'visualization') {
-    if (hasIntent(schema, /(globe|spinning|rotating|orbit)/) && !hasBlock(schema, 'globeVisualization')) issues.push({ type: 'requested_visual_object_missing', message: 'Requested globe visual object missing.' });
-    if (hasIntent(schema, /(marker|location|base|latitude|longitude)/) && !hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'marker_layer_missing', message: 'Marker layer missing for requested geo markers.' });
-    if (hasIntent(schema, /(spinning|rotating|orbit|animation)/) && !hasBlock(schema, 'animationControls')) issues.push({ type: 'animation_controls_missing', message: 'Animation controls missing.' });
-    if (hasIntent(schema, /(every|all|complete|existing)/) && !hasBlock(schema, 'datasetNotice')) issues.push({ type: 'dataset_notice_missing', message: 'Dataset limitation notice missing.' });
-    if (!schema.blocks.some((b) => ['globeVisualization','mapVisualization','geoMarkerLayer'].includes(b.type))) issues.push({ type: 'visualization_renderer_missing', message: 'Visualization renderer blocks missing.' });
-    if (!/interfaceforge/i.test(schema.generationMeta?.originalPrompt || '') && /interfaceforge globe|interface blueprint/i.test(`${schema.headline} ${schema.subhead}`)) issues.push({ type: 'generic_copy_mismatch', message: 'Generic copy mismatch for visualization prompt.' });
-    const hasStrongVisualObject = hasBlock(schema, 'globeVisualization') || hasBlock(schema, 'mapVisualization');
-    const hasCoreVisualizationControls = hasBlock(schema, 'geoMarkerLayer') && hasBlock(schema, 'animationControls') && hasBlock(schema, 'datasetNotice');
-    if (!hasStrongVisualObject || !hasCoreVisualizationControls) { visualCompletenessScore = Math.min(visualCompletenessScore, 48); issues.push({ type: 'missing_core_visual_object', message: 'Core visualization object or controls are not fully represented.' }); }
-    if (!hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'placeholder_visualization', message: 'Visualization relies on placeholder output without spatial marker layer.' });
+    if (hasBlock(schema, 'dataVisualization')) {
+      if (!hasBlock(schema, 'timelineControls')) {
+        issues.push({ type: 'animation_controls_missing', message: 'Timeline controls are missing for data visualization.' });
+      }
+    } else {
+      if (hasIntent(schema, /(globe|spinning|rotating|orbit)/) && !hasBlock(schema, 'globeVisualization')) issues.push({ type: 'requested_visual_object_missing', message: 'Requested globe visual object missing.' });
+      if (hasIntent(schema, /(marker|location|base|latitude|longitude)/) && !hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'marker_layer_missing', message: 'Marker layer missing for requested geo markers.' });
+      if (hasIntent(schema, /(spinning|rotating|orbit|animation)/) && !hasBlock(schema, 'animationControls')) issues.push({ type: 'animation_controls_missing', message: 'Animation controls missing.' });
+      if (hasIntent(schema, /(every|all|complete|existing)/) && !hasBlock(schema, 'datasetNotice')) issues.push({ type: 'dataset_notice_missing', message: 'Dataset limitation notice missing.' });
+      if (!schema.blocks.some((b) => ['globeVisualization','mapVisualization','geoMarkerLayer'].includes(b.type))) issues.push({ type: 'visualization_renderer_missing', message: 'Visualization renderer blocks missing.' });
+      if (!/interfaceforge/i.test(schema.generationMeta?.originalPrompt || '') && /interfaceforge globe|interface blueprint/i.test(`${schema.headline} ${schema.subhead}`)) issues.push({ type: 'generic_copy_mismatch', message: 'Generic copy mismatch for visualization prompt.' });
+      const hasStrongVisualObject = hasBlock(schema, 'globeVisualization') || hasBlock(schema, 'mapVisualization');
+      const hasCoreVisualizationControls = hasBlock(schema, 'geoMarkerLayer') && hasBlock(schema, 'animationControls') && hasBlock(schema, 'datasetNotice');
+      if (!hasStrongVisualObject || !hasCoreVisualizationControls) { visualCompletenessScore = Math.min(visualCompletenessScore, 48); issues.push({ type: 'missing_core_visual_object', message: 'Core visualization object or controls are not fully represented.' }); }
+      if (!hasBlock(schema, 'geoMarkerLayer')) issues.push({ type: 'placeholder_visualization', message: 'Visualization relies on placeholder output without spatial marker layer.' });
+    }
   }
 
   const interactionDepthScore = Math.min(100, 40 + (schema.interactive.selectableItems.length * 12));
@@ -192,7 +199,7 @@ export function evaluateQuality(schema: Schema): QualityReport {
   const hasMarkers = hasBlock(schema, 'geoMarkerLayer');
   const hasControls = hasBlock(schema, 'animationControls');
   const hasNotice = hasBlock(schema, 'datasetNotice') || hasBlock(schema, 'dataCoverageBadge');
-  if (schema.pattern === 'visualization' && hasIntent(schema, /(globe|map|marker|visualization)/)) {
+  if (isGeoVis && hasIntent(schema, /(globe|map|marker|visualization)/)) {
     if (!hasGlobe) issues.push({ type: 'weak_renderer_fidelity', message: 'Visualization renderer fidelity is weak without globe surface.' });
     if (!hasMarkers) issues.push({ type: 'marker_projection_missing', message: 'Spatial marker projection layer is missing.' });
     if (hasGlobe && !hasControls) issues.push({ type: 'missing_spatial_distribution', message: 'Interactive globe should include rotation controls for spatial context.' });

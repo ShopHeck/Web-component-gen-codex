@@ -109,3 +109,10 @@ it('flags visualization placeholders when marker layer is missing', () => {
   const report = evaluateQuality(schema);
   expect(report.issues.some((i) => i.type === 'placeholder_visualization')).toBe(true);
 });
+
+it('does not penalize abstract 3D data visualization for missing geographic blocks', () => {
+  const schema = buildSchema('Create a 3D data visualization of real-time server network activity.');
+  const report = evaluateQuality(schema);
+  expect(report.issues.some((i) => ['visualization_mismatch', 'placeholder_visualization', 'missing_core_visual_object'].includes(i.type))).toBe(false);
+  expect(report.suggestedRepairs.some((r) => ['add_missing_globe_visualization', 'add_missing_geo_marker_layer'].includes(r.type))).toBe(false);
+});

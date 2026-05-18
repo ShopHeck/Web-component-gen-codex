@@ -21,10 +21,17 @@ export function optimizePrompt(prompt: string): OptimizedPrompt {
     .sort((a, b) => b.score - a.score)[0];
 
   const confidence = Math.min(1, Math.max(0.35, best?.score || 0.35));
+  const toneMatch = prompt.match(/(modern|minimal|playful|sleek|dark|light|professional|corporate)/i);
+  const tone = toneMatch ? toneMatch[0].toLowerCase() : 'modern';
+  
+  const audienceMatch = prompt.match(/for ([\w\s]+?)(?:with|and|\.|,|$)/i);
+  const audience = audienceMatch ? audienceMatch[1].trim() : 'general users';
+  
   const structured = [
-    `Goal: ${prompt}`,
-    /interactive/i.test(prompt) ? 'Interaction: rich interactions requested.' : 'Interaction: include selectable and feedback states.',
-    /mobile|responsive/i.test(prompt) ? 'Constraints: prioritize responsive/mobile-first behavior.' : 'Constraints: fluid responsive layout.',
+    `Goal: Build a ${tone} UI tailored for ${audience}.`,
+    `Context: ${prompt}`,
+    /interactive|dynamic|animated|motion/i.test(prompt) ? 'Interaction: High-fidelity rich interactions and animations requested.' : 'Interaction: Clean, predictable selectable and feedback states.',
+    /mobile|responsive|phone/i.test(prompt) ? 'Constraints: Strict mobile-first behavior.' : 'Constraints: Fluid responsive layout.',
     /no backend|local|offline/i.test(prompt) ? 'Runtime: local-only execution with no backend dependency.' : 'Runtime: frontend-only and export-ready.'
   ].join(' ');
 

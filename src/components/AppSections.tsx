@@ -7,5 +7,5 @@ export function StyleControls({design,setDesign}:{design:Tokens;setDesign:(d:Tok
 export const widths:Record<Viewport,string>={mobile:'390px',tablet:'760px',desktop:'1080px',fluid:'100%'};
 export const title=(v:string)=>v.charAt(0).toUpperCase()+v.slice(1);
 export const Icons={Copy,Download,Monitor,Smartphone,Tablet,Wand2};
-export type Template = [string, string, string];
+export type Template = [string, string, string, string?];
 export function WorkbenchHeader({schema,draftPrompt,generatedPrompt,onGenerate}:{schema:Schema;draftPrompt:string;generatedPrompt:string;onGenerate:()=>void}){const {Wand2}=Icons;return <section className="workbench-head"><div className="brand"><span>IF</span><div><p>Local interface workshop</p><h1>Prompt, compose, inspect, ship.</h1><small>A deterministic studio bench for turning detailed briefs into editable, interactive component systems.</small></div></div><div className="head-actions"><button className="primary" onClick={onGenerate}><Wand2 size={18}/>Generate</button><b>{schema.directives.length}<small>directives</small></b><b>{draftPrompt!==generatedPrompt?'Draft changed':'In sync'}<small>{draftPrompt!==generatedPrompt?'not generated':'ready'}</small></b><b>1<small>package</small></b></div></section>}

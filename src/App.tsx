@@ -3,6 +3,8 @@ import { generateInterfaceFromPrompt } from './ai/generateInterface';
 import { buildSchema } from './generator/parser';
 import { buildExportPackage, downloadZip, exportPackageText } from './export/package';
 import { applySafeRepairs, evaluateQuality } from './generator/quality';
+import { suggestRefinements } from './generator/suggestions';
+import { applyPatch, parseEditDirective } from './editor/editEngine';
 import {
   Chip,
   Icons,
@@ -13,6 +15,7 @@ import {
   WorkbenchHeader,
   type Template
 } from './components/AppSections';
+
 import { moveBlock, resetWorkingSchema, toggleBlockVisibility, type Selection, updateBlock, updateBlockItem, updateDesignToken, updatePlan, updateRequirement } from './editor/schemaEdits';
 import { GeneratedRenderer } from './renderers/GeneratedRenderer';
 import { PROMPT_TEMPLATES, resolveTemplatePrompt } from './generator/templates';
@@ -20,8 +23,8 @@ import type { Tokens, Viewport } from './types/schema';
 
 const defaultPrompt = 'Create a sleek and modern pricing 4 card pricing display with $79/month $129/month $189/month and $229/month pricing cards for a local-first UI component generator called InterfaceForge with neural glow, export-ready code, and a launch CTA. Make the $229/month pricing card stand out by increasing size 20% and adding a subtle glow and 3d bevel effect.';
 const templates: Template[] = [
-  ...PROMPT_TEMPLATES.map((t) => [t.name, t.category, resolveTemplatePrompt(t.id, { tone: 'modern', product: 'InterfaceForge', style: 'neural', subject: 'global readiness', audience: 'new teams' }) || t.promptSeed] as Template),
-  ['Neural pricing suite', 'Pricing', defaultPrompt]
+  ...PROMPT_TEMPLATES.map((t) => [t.name, t.category, resolveTemplatePrompt(t.id, { tone: 'modern', product: 'InterfaceForge', style: 'neural', subject: 'global readiness', audience: 'new teams' }) || t.promptSeed, t.preview] as Template),
+  ['Neural pricing suite', 'Pricing', defaultPrompt, 'linear-gradient(135deg, #1e3a8a, #c026d3)']
 ];
 const defaultTokens: Tokens = { text: 'oklch(0.96 0.01 240)', muted: 'oklch(0.76 0.03 240)', button: 'oklch(0.68 0.15 225)', highlight: 'oklch(0.72 0.16 220)', cardBg: 'oklch(0.20 0.02 255 / .74)', cardBorder: 'oklch(0.58 0.07 235 / .34)', radius: 24, buttonRadius: 999, fontScale: 1 };
 
@@ -35,7 +38,9 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState('');
   const [active, setActive] = useState(templates[0][0]);
   const [selected, setSelected] = useState<Selection>(null);
-  const [assistMode, setAssistMode] = useState<'deterministic' | 'ai-assist'>('deterministic');
+  const [assistMode, setAssistMode] = useState<'deterministic' | 'ai-assist' | 'hybrid'>('hybrid');
+  const [editDirective, setEditDirective] = useState('');
+  const [editFeedback, setEditFeedback] = useState('');
 
   // Sandbox State & Visual Theme Integration
   const [sandboxState, setSandboxState] = useState<'ideal' | 'loading' | 'empty' | 'error'>('ideal');
@@ -50,10 +55,24 @@ export default function App() {
   const quality = useMemo(() => evaluateQuality(schema), [schema]);
   const exportPkg = useMemo(() => buildExportPackage(schema, design, quality), [schema, design, quality]);
   const artifact = exportPackageText(exportPkg);
+  const suggestions = useMemo(() => suggestRefinements(schema), [schema]);
 
   const { Copy, Download, Monitor, Smartphone, Tablet } = Icons;
   const selectedPlan = selected?.type === 'plan' ? schema.plans.find((p) => p.name === selected.planId) : null;
   const selectedLabel = selected?.type === 'plan' ? selected.planId : selected?.type === 'block' ? selected.blockId : selected?.type === 'item' ? `${selected.blockId} / ${selected.itemId}` : selected?.type === 'requirement' ? selected.requirementId : 'None';
+
+  const applyDirective = (directive: string) => {
+    const patch = parseEditDirective(directive.trim(), schema);
+    if (patch.op === 'noop') return `⚠ Could not parse: "${directive}"`;
+    const next = applyPatch(schema, patch);
+    // Lift any pending design token mutations
+    const pendingDesign = next.generationMeta?._pendingDesignPatch as { token: keyof Tokens; value: string | number } | undefined;
+    if (pendingDesign) {
+      setDesign(updateDesignToken(design, pendingDesign.token, String(pendingDesign.value)));
+    }
+    setWorkingSchema(next);
+    return `✓ Applied: ${patch.op}`;
+  };
 
   const copy = async () => {
     await navigator.clipboard.writeText(artifact);
@@ -112,6 +131,12 @@ export default function App() {
             setGeneratedBaselineSchema(baseline);
             setWorkingSchema(resetWorkingSchema(baseline));
             setStatusMessage(`AI Assist generated via ${result.provider}${result.warnings.length ? ` (${result.warnings.join('; ')})` : ''}.`);
+          } else if (assistMode === 'hybrid') {
+            const result = await generateInterfaceFromPrompt(draftPrompt, { mode: 'hybrid' });
+            const baseline = resetWorkingSchema(result.schema);
+            setGeneratedBaselineSchema(baseline);
+            setWorkingSchema(resetWorkingSchema(baseline));
+            setStatusMessage(`Hybrid Orchestrator routed via ${result.provider}${result.warnings.length ? ` (${result.warnings.join('; ')})` : ''}.`);
           } else {
             const baseline = resetWorkingSchema(buildSchema(draftPrompt));
             setGeneratedBaselineSchema(baseline);
@@ -140,6 +165,9 @@ export default function App() {
             <button className={assistMode === 'ai-assist' ? 'active' : ''} onClick={() => setAssistMode('ai-assist')}>
               AI Assist (mock)
             </button>
+            <button className={assistMode === 'hybrid' ? 'active' : ''} onClick={() => setAssistMode('hybrid')}>
+              Hybrid Orchestrator
+            </button>
           </div>
 
           <Section title="Templates" n="03" />
@@ -152,6 +180,28 @@ export default function App() {
                 onClick={() => {
                   setActive(t[0]);
                   useTemplate(t[2], false);
+                }}
+                style={{ position: 'relative', overflow: 'hidden' }}
+                onMouseEnter={(e) => {
+                  if (t[3]) {
+                    const tooltip = document.createElement('div');
+                    tooltip.id = 'preview-tooltip';
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.top = '0';
+                    tooltip.style.left = '105%';
+                    tooltip.style.width = '120px';
+                    tooltip.style.height = '80px';
+                    tooltip.style.borderRadius = '8px';
+                    tooltip.style.background = t[3];
+                    tooltip.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+                    tooltip.style.zIndex = '100';
+                    tooltip.style.pointerEvents = 'none';
+                    e.currentTarget.appendChild(tooltip);
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const tooltip = e.currentTarget.querySelector('#preview-tooltip');
+                  if (tooltip) tooltip.remove();
                 }}
               >
                 {t[0]} <small>{t[1]}</small>
@@ -185,6 +235,45 @@ export default function App() {
 
           <Section title="Style" n="04" />
           <StyleControls design={design} setDesign={setDesign} />
+          
+          <div style={{ marginTop: '12px' }}>
+            <label style={{ fontSize: '10px', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6, letterSpacing: '0.05em', display: 'block', marginBottom: '4px' }}>
+              Extract Palette from Image
+            </label>
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const img = new Image();
+                img.onload = () => {
+                  const canvas = document.createElement('canvas');
+                  canvas.width = img.width;
+                  canvas.height = img.height;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) return;
+                  ctx.drawImage(img, 0, 0);
+                  const data = ctx.getImageData(0, 0, img.width, img.height).data;
+                  let r = 0, g = 0, b = 0;
+                  const count = data.length / 4;
+                  for (let i = 0; i < data.length; i += 4) {
+                    r += data[i];
+                    g += data[i + 1];
+                    b += data[i + 2];
+                  }
+                  r = Math.floor(r / count);
+                  g = Math.floor(g / count);
+                  b = Math.floor(b / count);
+                  const hex = `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+                  setDesign({ ...design, highlight: hex, button: hex });
+                  setStatusMessage(`Extracted color ${hex} from image`);
+                };
+                img.src = URL.createObjectURL(file);
+              }}
+              style={{ fontSize: '12px' }}
+            />
+          </div>
 
           <Section title="Sandbox Controls" n="05" />
           <p>Simulate loading/empty/error states and apply high-impact visual design themes.</p>
@@ -254,11 +343,65 @@ export default function App() {
                 viewport={viewport}
                 selection={selected}
                 onSelect={setSelected}
+                onReorderBlock={(source, target) => setWorkingSchema(moveBlock(schema, source, target))}
                 sandboxState={sandboxState}
                 sandboxTheme={sandboxTheme}
               />
             </div>
           </div>
+          {suggestions.length > 0 && (
+            <div style={{
+              padding: '10px 16px 12px',
+              borderTop: '1px solid oklch(0.3 0.03 240 / 0.4)',
+              background: 'oklch(0.16 0.02 255 / 0.6)',
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '6px',
+              alignItems: 'center'
+            }}>
+              <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', opacity: 0.5, marginRight: '4px', whiteSpace: 'nowrap' }}>✦ Refine</span>
+              {suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => {
+                    // Try as a direct schema directive first (works for add, remove, set_* ops)
+                    const feedback = applyDirective(s.text);
+                    if (!feedback.startsWith('⚠')) {
+                      setEditFeedback(`✦ ${s.text}`);
+                    } else {
+                      // No parseable op — treat as a prompt-level regeneration hint
+                      const refined = generatedPrompt + '. ' + s.text;
+                      setDraftPrompt(refined);
+                      setGeneratedPrompt(refined);
+                      const baseline = resetWorkingSchema(buildSchema(refined));
+                      setGeneratedBaselineSchema(baseline);
+                      setWorkingSchema(resetWorkingSchema(baseline));
+                      setEditFeedback(`✦ Applied: ${s.text}`);
+                    }
+                    setSelected(null);
+                    setStatusMessage(s.text);
+                  }}
+                  style={{
+                    fontSize: '11px',
+                    padding: '5px 10px',
+                    borderRadius: '999px',
+                    border: '1px solid oklch(0.5 0.08 240 / 0.4)',
+                    background: 'oklch(0.22 0.04 255 / 0.5)',
+                    color: 'oklch(0.88 0.06 230)',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'oklch(0.30 0.08 240 / 0.7)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'oklch(0.22 0.04 255 / 0.5)'; }}
+                >
+                  <span style={{ opacity: 0.7 }}>{s.icon}</span> {s.text}
+                </button>
+              ))}
+            </div>
+          )}
         </section>
 
         <aside className="inspector">
@@ -425,7 +568,35 @@ export default function App() {
             <input value={design.highlight} onChange={(e) => setDesign(updateDesignToken(design, 'highlight', e.target.value))} />
           </div>
 
-          <Section title="Export" n="07" />
+          <Section title="Edit Directive" n="07" />
+          <p>Type a natural language edit to mutate the schema without re-generating.</p>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '6px' }}>
+            <input
+              value={editDirective}
+              onChange={(e) => setEditDirective(e.target.value)}
+              placeholder='e.g. "Add a comparison matrix" or "Make headline: Ship Faster"'
+              style={{ flex: 1, fontSize: '11px' }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && editDirective.trim()) {
+                  const feedback = applyDirective(editDirective);
+                  setEditFeedback(feedback);
+                  if (!feedback.startsWith('⚠')) setEditDirective('');
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (!editDirective.trim()) return;
+                const feedback = applyDirective(editDirective);
+                setEditFeedback(feedback);
+                if (!feedback.startsWith('⚠')) setEditDirective('');
+              }}
+              style={{ whiteSpace: 'nowrap', fontSize: '11px' }}
+            >Apply</button>
+          </div>
+          {editFeedback && <p style={{ fontSize: '11px', opacity: 0.7, margin: '2px 0 8px' }}>{editFeedback}</p>}
+
+          <Section title="Export" n="08" />
           <p>Export uses the edited working schema currently shown in preview.</p>
           <p>Export package is local-first and deterministic. No backend or remote API calls.</p>
           <button onClick={copy}>

@@ -6,8 +6,14 @@ export function buildIntentGraph(prompt: string): IntentGraph {
   const nodes: IntentNode[] = [];
   const push = (id: string, kind: IntentNode['kind'], label: string, confidence: number) => nodes.push({ id, kind, label, confidence });
   if (/pricing|plan|billing/.test(text)) push('primary-pricing', 'primary', 'pricing', 0.9);
-  else if (/dashboard|metrics|kpi/.test(text)) push('primary-dashboard', 'primary', 'dashboard', 0.85);
+  else if (/dashboard|metrics|kpi|analytics/.test(text)) push('primary-dashboard', 'primary', 'dashboard', 0.85);
+  else if (/chat|message|llm|bot|conversation/.test(text)) push('primary-chat', 'primary', 'chat', 0.9);
+  else if (/checkout|cart|purchase|payment|shop/.test(text)) push('primary-checkout', 'primary', 'checkout', 0.85);
+  else if (/calendar|booking|schedule|slots|appointment/.test(text)) push('primary-calendar', 'primary', 'calendar', 0.85);
   else if (/globe|map|visualization/.test(text)) push('primary-visualization', 'primary', 'visualization', 0.9);
+  else if (/kanban|board|sprint|tasks|agile/.test(text)) push('primary-kanban', 'primary', 'kanban', 0.85);
+  else if (/onboarding|wizard|step|setup|welcome/.test(text)) push('primary-onboarding', 'primary', 'onboarding', 0.9);
+  else if (/editor|code|ide|playground|terminal/.test(text)) push('primary-editor', 'primary', 'editor', 0.85);
   else push('primary-custom', 'primary', 'custom', 0.7);
 
   if (/interactive|select|toggle|filter|expand/.test(text)) push('secondary-interaction', 'secondary', 'rich interaction', 0.8);
