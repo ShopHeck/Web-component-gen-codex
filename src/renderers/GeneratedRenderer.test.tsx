@@ -20,3 +20,25 @@ describe('GeneratedRenderer globe visualization', () => {
     expect(html).not.toContain('marker-row');
   });
 });
+
+describe('GeneratedRenderer kanban ai assist', () => {
+  it('renders kanban columns/cards with active glow affordance', () => {
+    const schema = buildSchema('custom');
+    schema.pattern = 'custom';
+    schema.blocks = [
+      { type: 'hero', title: 'Kanban', items: ['Board'] },
+      { type: 'customRequirementGrid', title: 'kanban', data: { widget: 'kanban', columns: [
+        { id: 'todo', title: 'Backlog', cards: ['A', 'B'] },
+        { id: 'doing', title: 'In Progress', cards: ['C'] },
+        { id: 'review', title: 'Review', cards: ['D'] },
+        { id: 'done', title: 'Done', cards: ['E'] }
+      ] } }
+    ];
+    const html = renderToStaticMarkup(<GeneratedRenderer schema={schema} design={tokens} viewport="desktop" selection={null} onSelect={() => undefined} />);
+    expect(html).toContain('data-testid="kanban-board"');
+    expect((html.match(/data-testid="kanban-column"/g) || []).length).toBeGreaterThanOrEqual(4);
+    expect(html).toContain('data-testid="kanban-card"');
+    expect(html).toContain('Add');
+    expect(html).toContain('Move');
+  });
+});
