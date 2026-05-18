@@ -49,7 +49,7 @@ function tokenCss(design: Tokens): string {
 }
 
 function componentTsxCode(): string {
-  return `import React, { useMemo, useState } from 'react';
+  return `import React, { useEffect, useMemo, useState } from 'react';
 import schemaData from './generatedSchema.json';
 import './GeneratedComponent.css';
 
@@ -99,6 +99,14 @@ export default function GeneratedComponent() {
     const seed = Array.from(base.id).reduce((acc, char) => acc + char.charCodeAt(0), 0) + index * 13;
     return { base, projection, jitterX: ((seed % 9) - 4) * 0.34, jitterY: ((Math.floor(seed / 7) % 9) - 4) * 0.26 };
   }), [rotationDeg]);
+
+  useEffect(() => {
+    if (spinPaused) return;
+    const interval = window.setInterval(() => {
+      setRotationDeg((deg) => (deg + 2) % 360);
+    }, 80);
+    return () => window.clearInterval(interval);
+  }, [spinPaused]);
 
   const onSendChat = () => {
     const msg = chatInput.trim();
@@ -167,7 +175,7 @@ export default function GeneratedComponent() {
           case 'markerLegend':
             return <section key={index}><h2>{block.title ?? 'Marker legend'}</h2><p>Glowing marker = bundled base location.</p></section>;
           case 'animationControls':
-            return <section key={index}><button onClick={() => { setSpinPaused((v) => !v); setRotationDeg((deg) => (deg + 32) % 360); }}>{spinPaused ? 'Resume rotation' : 'Pause rotation'}</button></section>;
+            return <section key={index}><button onClick={() => setSpinPaused((v) => !v)}>{spinPaused ? 'Resume rotation' : 'Pause rotation'}</button></section>;
           case 'datasetNotice':
             return <section key={index}><small>{usMilitaryBasesDatasetNotice}</small></section>;
           case 'dataCoverageBadge':
