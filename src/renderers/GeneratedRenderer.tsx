@@ -1,10 +1,101 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate } from 'framer-motion';
 import { Send, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Activity, Cpu, Network, Wifi, Zap, Radio, Lock, Unlock, Settings, Terminal, Bell, Play, RefreshCw } from 'lucide-react';
 import { usMilitaryBasesDatasetNotice, usMilitaryBasesSample } from '../data/usMilitaryBases';
 import { projectMarker } from './globeProjection';
 import type { Plan, Schema, Tokens, Viewport } from '../types/schema';
 import type { Selection } from '../editor/schemaEdits';
+
+// --- Interactive Framer Motion Micro-Interactions ---
+function MagneticElement({ children, className, style, onClick }: any) {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const springX = useSpring(x, { stiffness: 150, damping: 15, mass: 0.1 });
+  const springY = useSpring(y, { stiffness: 150, damping: 15, mass: 0.1 });
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const centerX = left + width / 2;
+    const centerY = top + height / 2;
+    x.set((e.clientX - centerX) * 0.2);
+    y.set((e.clientY - centerY) * 0.2);
+  };
+
+  return (
+    <motion.div
+      style={{ x: springX, y: springY, ...style }}
+      className={className}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => { x.set(0); y.set(0); }}
+      onClick={onClick}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+function ParallaxCard({ children, className, style, onClick, active }: any) {
+  const x = useMotionValue(0);
+  const y = useMotionValue(0);
+  const mouseXSpring = useSpring(x, { stiffness: 150, damping: 25 });
+  const mouseYSpring = useSpring(y, { stiffness: 150, damping: 25 });
+  
+  const rotateX = useTransform(mouseYSpring, [-0.5, 0.5], ["7deg", "-7deg"]);
+  const rotateY = useTransform(mouseXSpring, [-0.5, 0.5], ["-7deg", "7deg"]);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    x.set(mouseX / width - 0.5);
+    y.set(mouseY / height - 0.5);
+  };
+
+  return (
+    <motion.article
+      style={{
+        ...style,
+        perspective: 1200,
+        rotateX: active ? 0 : rotateX,
+        rotateY: active ? 0 : rotateY,
+        transformStyle: "preserve-3d",
+      }}
+      className={className}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={() => {
+        x.set(0);
+        y.set(0);
+      }}
+      onClick={onClick}
+      whileHover={{ scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+    >
+      {/* Subtle Glow Overlay that tracks mouse */}
+      <motion.div
+        className="pointer-events-none absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100"
+        style={{
+          background: useMotionTemplate`
+            radial-gradient(
+              200px circle at ${useTransform(mouseXSpring, v => (v + 0.5) * 100)}% ${useTransform(mouseYSpring, v => (v + 0.5) * 100)}%,
+              rgba(255, 255, 255, 0.08),
+              transparent 80%
+            )
+          `,
+          position: 'absolute',
+          inset: 0,
+          zIndex: 0,
+          borderRadius: 'inherit'
+        }}
+        whileHover={{ opacity: 1 }}
+      />
+      <div style={{ position: 'relative', zIndex: 1, height: '100%', transform: "translateZ(30px)" }}>
+        {children}
+      </div>
+    </motion.article>
+  );
+}
 
 function planStyle(p: Plan, d: Tokens) {
   const v = p.visual;
@@ -99,6 +190,9 @@ export function GeneratedRenderer({
     return (
       <motion.div
         layout
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         className={`hf-draggable-block ${className} ${selection?.type === 'block' && selection.blockId === String(idx) ? 'selected-node' : ''}`}
         style={{ order: idx, display: 'flex', flexDirection: 'column' }}
         draggable
@@ -980,7 +1074,7 @@ export function GeneratedRenderer({
           )}
           <div className={`plan-grid generated-grid ${grid}`}>
             {schema.plans.map((p) => (
-              <article
+              <ParallaxCard
                 className={`plan generated-card ${p.visual.featured ? 'generated-featured-card' : ''} ${
                   selection?.type === 'plan' && selection.planId === p.name ? 'selected-node' : ''
                 }`}
@@ -997,10 +1091,18 @@ export function GeneratedRenderer({
                     <li key={f}>{f}</li>
                   ))}
                 </ul>
-                <button className="generated-cta" onClick={() => runAction('plan', p.name)}>
-                  {p.visual.featured ? 'Launch now' : 'Select plan'}
-                </button>
-              </article>
+                <MagneticElement style={{ width: '100%', alignSelf: 'end' }}>
+                  <motion.button 
+                    className="generated-cta" 
+                    onClick={() => runAction('plan', p.name)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    style={{ width: '100%' }}
+                  >
+                    {p.visual.featured ? 'Launch now' : 'Select plan'}
+                  </motion.button>
+                </MagneticElement>
+              </ParallaxCard>
             ))}
           </div>
           {hasBlock(schema, 'comparisonMatrix') && (
@@ -1018,19 +1120,30 @@ export function GeneratedRenderer({
             <article className="requirement generated-card">
               <p>Enterprise</p>
               <b>{blockItems(schema, 'enterpriseContact')[0] || 'Need custom terms?'}</b>
-              <button
-                className="generated-cta"
-                onClick={() => runAction('custom_cta', blockItems(schema, 'enterpriseContact')[0] || 'Contact sales')}
-              >
-                {blockItems(schema, 'enterpriseContact')[0] || 'Contact sales'}
-              </button>
+              <MagneticElement style={{ alignSelf: 'end' }}>
+                <motion.button
+                  className="generated-cta"
+                  onClick={() => runAction('custom_cta', blockItems(schema, 'enterpriseContact')[0] || 'Contact sales')}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {blockItems(schema, 'enterpriseContact')[0] || 'Contact sales'}
+                </motion.button>
+              </MagneticElement>
             </article>
           )}
           {hasBlock(schema, 'ctaBand') && (
-            <div className="stack">
-              <button className="generated-cta" onClick={() => runAction('plan', schema.action)}>
-                {schema.action}
-              </button>
+            <div className="stack" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <MagneticElement>
+                <motion.button 
+                  className="generated-cta" 
+                  onClick={() => runAction('plan', schema.action)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  {schema.action}
+                </motion.button>
+              </MagneticElement>
             </div>
           )}
         </>

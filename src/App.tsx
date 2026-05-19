@@ -4,7 +4,7 @@ import { buildSchema } from './generator/parser';
 import { buildExportPackage, downloadZip, exportPackageText } from './export/package';
 import { applySafeRepairs, evaluateQuality } from './generator/quality';
 import { suggestRefinements } from './generator/suggestions';
-import { applyPatch, parseEditDirective } from './editor/editEngine';
+import { applyPatch, parseEditDirective, parseEditDirectiveAI } from './editor/editEngine';
 import {
   Chip,
   Icons,
@@ -42,6 +42,7 @@ export default function App() {
   const [forceSlowPath, setForceSlowPath] = useState(false);
   const [editDirective, setEditDirective] = useState('');
   const [editFeedback, setEditFeedback] = useState('');
+  const [isAIProcessing, setIsAIProcessing] = useState(false);
 
   // Sandbox State & Visual Theme Integration
   const [sandboxState, setSandboxState] = useState<'ideal' | 'loading' | 'empty' | 'error'>('ideal');
@@ -62,17 +63,29 @@ export default function App() {
   const selectedPlan = selected?.type === 'plan' ? schema.plans.find((p) => p.name === selected.planId) : null;
   const selectedLabel = selected?.type === 'plan' ? selected.planId : selected?.type === 'block' ? selected.blockId : selected?.type === 'item' ? `${selected.blockId} / ${selected.itemId}` : selected?.type === 'requirement' ? selected.requirementId : 'None';
 
-  const applyDirective = (directive: string) => {
-    const patch = parseEditDirective(directive.trim(), schema);
-    if (patch.op === 'noop') return `⚠ Could not parse: "${directive}"`;
-    const next = applyPatch(schema, patch);
-    // Lift any pending design token mutations
-    const pendingDesign = next.generationMeta?._pendingDesignPatch as { token: keyof Tokens; value: string | number } | undefined;
-    if (pendingDesign) {
-      setDesign(updateDesignToken(design, pendingDesign.token, String(pendingDesign.value)));
+  const applyDirectiveAI = async (directive: string) => {
+    setIsAIProcessing(true);
+    setEditFeedback('AI is thinking...');
+    try {
+      const patch = await parseEditDirectiveAI(directive.trim(), schema);
+      if (patch.op === 'noop') {
+        setEditFeedback(`⚠ AI could not parse intent: "${directive}"`);
+        return;
+      }
+      const next = applyPatch(schema, patch);
+      // Lift any pending design token mutations
+      const pendingDesign = next.generationMeta?._pendingDesignPatch as { token: keyof Tokens; value: string | number } | undefined;
+      if (pendingDesign) {
+        setDesign(updateDesignToken(design, pendingDesign.token, String(pendingDesign.value)));
+      }
+      setWorkingSchema(next);
+      setEditFeedback(`✓ AI Applied: ${patch.op}`);
+      setEditDirective('');
+    } catch (e) {
+      setEditFeedback('⚠ AI Error occurred');
+    } finally {
+      setIsAIProcessing(false);
     }
-    setWorkingSchema(next);
-    return `✓ Applied: ${patch.op}`;
   };
 
   const copy = async () => {
@@ -372,22 +385,9 @@ export default function App() {
                 <button
                   key={i}
                   onClick={() => {
-                    // Try as a direct schema directive first (works for add, remove, set_* ops)
-                    const feedback = applyDirective(s.text);
-                    if (!feedback.startsWith('⚠')) {
-                      setEditFeedback(`✦ ${s.text}`);
-                    } else {
-                      // No parseable op — treat as a prompt-level regeneration hint
-                      const refined = generatedPrompt + '. ' + s.text;
-                      setDraftPrompt(refined);
-                      setGeneratedPrompt(refined);
-                      const baseline = resetWorkingSchema(buildSchema(refined));
-                      setGeneratedBaselineSchema(baseline);
-                      setWorkingSchema(resetWorkingSchema(baseline));
-                      setEditFeedback(`✦ Applied: ${s.text}`);
-                    }
+                    void applyDirectiveAI(s.text);
+                    setStatusMessage('Applying AI suggestion...');
                     setSelected(null);
-                    setStatusMessage(s.text);
                   }}
                   style={{
                     fontSize: '11px',
@@ -583,26 +583,24 @@ export default function App() {
               value={editDirective}
               onChange={(e) => setEditDirective(e.target.value)}
               placeholder='e.g. "Add a comparison matrix" or "Make headline: Ship Faster"'
-              style={{ flex: 1, fontSize: '11px' }}
+              style={{ flex: 1, fontSize: '11px', opacity: isAIProcessing ? 0.5 : 1 }}
+              disabled={isAIProcessing}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && editDirective.trim()) {
-                  const feedback = applyDirective(editDirective);
-                  setEditFeedback(feedback);
-                  if (!feedback.startsWith('⚠')) setEditDirective('');
+                if (e.key === 'Enter' && editDirective.trim() && !isAIProcessing) {
+                  void applyDirectiveAI(editDirective);
                 }
               }}
             />
             <button
+              disabled={isAIProcessing}
               onClick={() => {
-                if (!editDirective.trim()) return;
-                const feedback = applyDirective(editDirective);
-                setEditFeedback(feedback);
-                if (!feedback.startsWith('⚠')) setEditDirective('');
+                if (!editDirective.trim() || isAIProcessing) return;
+                void applyDirectiveAI(editDirective);
               }}
-              style={{ whiteSpace: 'nowrap', fontSize: '11px' }}
-            >Apply</button>
+              style={{ whiteSpace: 'nowrap', fontSize: '11px', opacity: isAIProcessing ? 0.5 : 1 }}
+            >{isAIProcessing ? 'Thinking...' : 'Apply'}</button>
           </div>
-          {editFeedback && <p style={{ fontSize: '11px', opacity: 0.7, margin: '2px 0 8px' }}>{editFeedback}</p>}
+          {editFeedback && <p style={{ fontSize: '11px', opacity: 0.7, margin: '2px 0 8px', color: editFeedback.includes('⚠') ? '#ef4444' : '#10b981' }}>{editFeedback}</p>}
 
           <Section title="Export" n="08" />
           <p>Export uses the edited working schema currently shown in preview.</p>

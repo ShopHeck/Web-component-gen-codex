@@ -50,7 +50,65 @@ function visualizationMeta(text: string) {
 
 function product(p: string) { const c = after(p, 'called ') || after(p, 'named '); if (c) return title(c.split(' with ')[0].split(' for ')[0].split(' and ')[0]); return 'InterfaceForge'; }
 function featuresFromIR(ir: ParseIR, prod: string) { const t = ir.normalized; const out: string[] = []; if (has(t, ['local', 'no backend', 'no api'])) out.push('Runs fully on-device'); if (t.includes('export')) out.push('Export-ready code package'); if (has(t, ['neural', 'glow'])) out.push('Neural glow states'); if (t.includes('interactive')) out.push('Interactive states'); ir.entities.fields.filter((x) => !x.text.startsWith('$') && x.text.length < 48).slice(0, 4).forEach((x) => out.push(title(x.text))); return [...new Set(out.length ? out : [`${prod} workflow`, 'Production JSX', 'Design tokens'])].slice(0, 8); }
-export function makePlans(ir: ParseIR, prod: string, feats: string[]): Plan[] { const prices = [...new Set(ir.entities.prices.map((p) => p.text.replace(/\/mo\b/g, '/month').replace(/\/yr\b/g, '/year')))]; const count = Math.max(prices.length, 3); const names = ['Starter', 'Growth', 'Pro', 'Premium', 'Scale']; const lastPrice = prices[prices.length - 1]; const emphasizedPremium = ir.directives.some((d) => d.target === 'premium_plan' || d.target === 'final_card') || (Boolean(lastPrice) && ir.directives.some((d) => d.target === 'card') && ir.normalized.includes(lastPrice.toLowerCase()) && /stand out|highlight|glow|bevel|bigger|larger|scale/.test(ir.normalized)); const scaleDirective = [...ir.directives].reverse().find((d) => d.effect === 'scale'); const percentScale = ir.normalized.match(/(\d+(?:\.\d+)?)%/); const inferredScale = percentScale ? 1 + Number(percentScale[1]) / 100 : 1; const glowDirective = [...ir.directives].reverse().find((d) => d.effect === 'glow'); const inferredGlow = ir.normalized.includes('subtle glow') ? 'subtle' : 'none'; const bevelDirective = [...ir.directives].reverse().find((d) => d.effect === 'bevel'); const idx = emphasizedPremium ? count - 1 : Math.min(1, count - 1); return Array.from({ length: count }).map((_, i) => ({ name: names[i] || `Plan ${i + 1}`, price: prices[i] || `$${(i + 1) * 49}/month`, annual: prices[i]?.replace('/month', '/year') || `$${(i + 1) * 490}/year`, description: i === count - 1 ? 'The most complete package for high-volume teams.' : i === 0 ? `Essential tools to start with ${prod}.` : 'More polish, power, and export control.', features: [feats[i % feats.length], i % 2 ? 'Advanced export states' : 'Responsive card layout', i === count - 1 ? 'Premium CTA treatment' : 'Production-ready source'], visual: { featured: i === idx, scale: i === idx ? (typeof scaleDirective?.magnitude === 'number' ? scaleDirective.magnitude as number : inferredScale) : 1, glow: i === idx ? (ir.normalized.includes('subtle glow') ? 'subtle' : String(glowDirective?.magnitude || inferredGlow)) : 'none', bevel: i === idx ? (ir.normalized.includes('bevel') ? 'medium' : String(bevelDirective?.magnitude || 'none')) : 'none', badge: i === idx ? 'Premium pick' : undefined } })); }
+export function makePlans(ir: ParseIR, prod: string, feats: string[]): Plan[] {
+  const prices = [...new Set(ir.entities.prices.map((p) => p.text.replace(/\/mo\b/g, '/month').replace(/\/yr\b/g, '/year')))];
+  const count = Math.max(prices.length, 3);
+  
+  const defaultNames = ['Starter', 'Growth', 'Pro', 'Premium', 'Scale'];
+  const extractedNames: string[] = [];
+  const ignored = new Set(['for', 'and', 'a', 'an', 'the', 'at', 'with', 'or', 'of', 'to', 'is', 'are', 'pricing', 'called', 'named', 'plan', 'plans']);
+  
+  // Sort prices by their position in the prompt to ensure correct mapping
+  const sortedPrices = [...ir.entities.prices].sort((a, b) => a.start - b.start);
+  
+  sortedPrices.forEach((p) => {
+    const sub = ir.original.slice(Math.max(0, p.start - 30), p.start);
+    const words = sub.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/).map(w => w.trim()).filter(Boolean);
+    const validWords = words.filter(w => !ignored.has(w.toLowerCase()));
+    if (validWords.length > 0) {
+      const name = title(validWords[validWords.length - 1]);
+      if (name && !extractedNames.includes(name)) {
+        extractedNames.push(name);
+      }
+    }
+  });
+
+  const names: string[] = [];
+  for (let i = 0; i < count; i++) {
+    if (extractedNames[i]) {
+      names.push(extractedNames[i]);
+    } else {
+      const unusedDefault = defaultNames.find(dn => !names.includes(dn));
+      names.push(unusedDefault || `Plan ${i + 1}`);
+    }
+  }
+
+  const lastPrice = prices[prices.length - 1];
+  const emphasizedPremium = ir.directives.some((d) => d.target === 'premium_plan' || d.target === 'final_card') || (Boolean(lastPrice) && ir.directives.some((d) => d.target === 'card') && ir.normalized.includes(lastPrice.toLowerCase()) && /stand out|highlight|glow|bevel|bigger|larger|scale/.test(ir.normalized));
+  const scaleDirective = [...ir.directives].reverse().find((d) => d.effect === 'scale');
+  const percentScale = ir.normalized.match(/(\d+(?:\.\d+)?)%/);
+  const inferredScale = percentScale ? 1 + Number(percentScale[1]) / 100 : 1;
+  const glowDirective = [...ir.directives].reverse().find((d) => d.effect === 'glow');
+  const inferredGlow = ir.normalized.includes('subtle glow') ? 'subtle' : 'none';
+  const bevelDirective = [...ir.directives].reverse().find((d) => d.effect === 'bevel');
+  const idx = emphasizedPremium ? count - 1 : Math.min(1, count - 1);
+
+  return Array.from({ length: count }).map((_, i) => ({
+    name: names[i] || `Plan ${i + 1}`,
+    price: prices[i] || `$${(i + 1) * 49}/month`,
+    annual: prices[i]?.replace('/month', '/year') || `$${(i + 1) * 490}/year`,
+    description: i === count - 1 ? 'The most complete package for high-volume teams.' : i === 0 ? `Essential tools to start with ${prod}.` : 'More polish, power, and export control.',
+    features: [feats[i % feats.length], i % 2 ? 'Advanced export states' : 'Responsive card layout', i === count - 1 ? 'Premium CTA treatment' : 'Production-ready source'],
+    visual: {
+      featured: i === idx,
+      scale: i === idx ? (typeof scaleDirective?.magnitude === 'number' ? scaleDirective.magnitude as number : inferredScale) : 1,
+      glow: i === idx ? (ir.normalized.includes('subtle glow') ? 'subtle' : String(glowDirective?.magnitude || inferredGlow)) : 'none',
+      bevel: i === idx ? (ir.normalized.includes('bevel') ? 'medium' : String(bevelDirective?.magnitude || 'none')) : 'none',
+      badge: i === idx ? 'Premium pick' : undefined
+    }
+  }));
+}
+
 
 export function buildSchema(prompt: string): Schema {
   const optimization = optimizePrompt(prompt);

@@ -3,6 +3,7 @@ import { buildSchema } from '../generator/parser';
 import { evaluateQuality } from '../generator/quality';
 import { buildExportPackage } from '../export/package';
 import { moveBlock, toggleBlockVisibility, updateBlockItem, updatePlan } from './schemaEdits';
+import { parseEditDirectiveAI, applyPatch } from './editEngine';
 
 const tokens = { text:'x', muted:'x', button:'x', highlight:'x', cardBg:'x', cardBorder:'x', radius:4, buttonRadius:4, fontScale:1 };
 
@@ -48,5 +49,57 @@ describe('schema edits', () => {
     const pkg = buildExportPackage(edited, tokens as any, quality);
     expect(pkg.repairedSchema.plans[0].price).toBe('$404/month');
     expect(quality.overallScore).toBeGreaterThan(0);
+  });
+
+  describe('parseEditDirectiveAI and applyPatch NLP integration', () => {
+    it('parses and applies price changes for specific plans', async () => {
+      const schema = buildSchema('pricing for basic $10/month and pro $20/month');
+      const patch = await parseEditDirectiveAI('change price of basic plan to $15', schema);
+      expect(patch).toEqual({ op: 'update_plan', planName: 'Basic', data: { price: '$15' } });
+      const edited = applyPatch(schema, patch);
+      expect(edited.plans.find(p => p.name === 'Basic')?.price).toBe('$15');
+    });
+
+    it('parses and applies annual price changes', async () => {
+      const schema = buildSchema('pricing for basic $10/month and pro $20/month');
+      const patch = await parseEditDirectiveAI('set pro annual price to $199', schema);
+      expect(patch).toEqual({ op: 'update_plan', planName: 'Pro', data: { annual: '$199' } });
+      const edited = applyPatch(schema, patch);
+      expect(edited.plans.find(p => p.name === 'Pro')?.annual).toBe('$199');
+    });
+
+    it('parses and applies featured plan change', async () => {
+      const schema = buildSchema('pricing for basic $10/month and pro $20/month');
+      const patch = await parseEditDirectiveAI('make basic plan featured', schema);
+      expect(patch).toEqual({ op: 'update_plan', planName: 'Basic', data: { featured: true } });
+      const edited = applyPatch(schema, patch);
+      expect(edited.plans.find(p => p.name === 'Basic')?.visual.featured).toBe(true);
+      expect(edited.plans.find(p => p.name === 'Pro')?.visual.featured).toBe(false);
+    });
+
+    it('parses and applies adding feature to a plan', async () => {
+      const schema = buildSchema('pricing for basic $10/month and pro $20/month');
+      const patch = await parseEditDirectiveAI('add feature offline mode to pro plan', schema);
+      expect(patch).toEqual({ op: 'add_feature', feature: 'offline mode', planName: 'Pro' });
+      const edited = applyPatch(schema, patch);
+      expect(edited.plans.find(p => p.name === 'Pro')?.features).toContain('offline mode');
+    });
+
+    it('parses and applies removing feature from a plan', async () => {
+      const schema = buildSchema('pricing for basic $10/month and pro $20/month');
+      schema.plans[1].features.push('offline mode');
+      const patch = await parseEditDirectiveAI('remove feature offline mode from pro plan', schema);
+      expect(patch).toEqual({ op: 'remove_feature', feature: 'offline mode', planName: 'Pro' });
+      const edited = applyPatch(schema, patch);
+      expect(edited.plans.find(p => p.name === 'Pro')?.features).not.toContain('offline mode');
+    });
+
+    it('parses and applies moving block to top or bottom', async () => {
+      const schema = buildSchema('pricing with monthly annual comparison matrix');
+      const patch = await parseEditDirectiveAI('move pricing to bottom', schema);
+      expect(patch).toEqual({ op: 'move_block', blockType: 'pricingCards', position: 'bottom' });
+      const edited = applyPatch(schema, patch);
+      expect(edited.blocks[edited.blocks.length - 1].type).toBe('pricingCards');
+    });
   });
 });
