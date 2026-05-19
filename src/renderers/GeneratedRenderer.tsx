@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, useMotionTemplate } from 'framer-motion';
-import { Send, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Activity, Cpu, Network, Wifi, Zap, Radio, Lock, Unlock, Settings, Terminal, Bell, Play, RefreshCw } from 'lucide-react';
+import { Send, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Activity, Cpu, Network, Wifi, Zap, Radio, Lock, Unlock, Settings, Terminal, Bell, Play, RefreshCw, Pause, AlertCircle, CheckCircle, Coins, Loader2 } from 'lucide-react';
 import { usMilitaryBasesDatasetNotice, usMilitaryBasesSample } from '../data/usMilitaryBases';
 import { projectMarker } from './globeProjection';
 import type { Plan, Schema, Tokens, Viewport } from '../types/schema';
@@ -278,6 +278,22 @@ export function GeneratedRenderer({
     { id: 5, time: '17:06:15', msg: 'Isolation: CDN Edge isolated automatically on anomalous payload detection.', type: 'isolation' },
   ]);
   const [cyberLogFilter, setCyberLogFilter] = useState<'all' | 'intrusion' | 'firewall' | 'isolation'>('all');
+
+  // --- AI Agent Orchestrator States ---
+  const promptEditorBlock = schema.blocks.find(b => b.type === 'promptEditor');
+  const initialPromptEditorValue = promptEditorBlock?.items?.[0] || 'You are a helpful agent...';
+  const [promptEditorValue, setPromptEditorValue] = useState(initialPromptEditorValue);
+  const [isCompilingAgent, setIsCompilingAgent] = useState(false);
+  const [isCostBreakdownOpen, setIsCostBreakdownOpen] = useState(false);
+  const [pipelineStates, setPipelineStates] = useState<Record<number, 'Running' | 'Paused' | 'Failed' | 'Retrying'>>({
+    0: 'Running',
+    1: 'Running',
+    2: 'Failed'
+  });
+
+  useEffect(() => {
+    setPromptEditorValue(initialPromptEditorValue);
+  }, [initialPromptEditorValue]);
 
   // ─── Spatial Audio Workspace State ───
   const [audioNodes, setAudioNodes] = useState<Array<{ id: string; label: string; x: number; y: number; color: string }>>([
@@ -587,6 +603,18 @@ export function GeneratedRenderer({
     }
 
     const Tag = (type || 'div') as any;
+    const isVoid = typeof Tag === 'string' && ['input', 'br', 'img', 'hr', 'meta', 'link', 'area', 'base', 'col', 'embed', 'param', 'source', 'track', 'wbr'].includes(Tag.toLowerCase());
+
+    if (isVoid) {
+      return (
+        <Tag
+          key={idx}
+          className={className}
+          style={props.style}
+          {...resolvedProps}
+        />
+      );
+    }
 
     return (
       <Tag
@@ -2508,22 +2536,100 @@ export function GeneratedRenderer({
 
       {/* ── AI AGENT ORCHESTRATOR ── */}
       {schema.pattern === 'orchestrator' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px' }} data-testid="orchestrator-pattern">
-          {hasBlock(schema, 'tokenCostGrid') && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
-              {blockItems(schema, 'tokenCostGrid').map((m, i) => (
-                <div key={i} style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.8)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.4 0.06 240 / 0.3)` }}>
-                  <div style={{ fontSize: '10px', opacity: 0.5, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>{['Cost / Run','Tokens Used','Success Rate','Active Agents'][i]}</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: design.text || '#e8f0fe' }}>{m.split(' ')[0]}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '20px', position: 'relative' }} data-testid="orchestrator-pattern">
+          {/* Cost Breakdown Modal */}
+          {isCostBreakdownOpen && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+              <div style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.95)', borderRadius: `${design.radius ?? 16}px`, padding: '24px', border: `1px solid ${design.highlight || '#3b82f6'}`, width: '400px', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 800, color: design.text || '#e8f0fe' }}>
+                    <Coins style={{ color: design.highlight || '#3b82f6' }} size={20} /> Token Cost Breakdown
+                  </h3>
+                  <button onClick={() => setIsCostBreakdownOpen(false)} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: design.text || '#e8f0fe', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Close</button>
                 </div>
-              ))}
+                
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', color: design.text || '#e8f0fe', marginBottom: '20px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 0', opacity: 0.6 }}>Resource</th>
+                      <th style={{ textAlign: 'right', padding: '8px 0', opacity: 0.6 }}>Usage</th>
+                      <th style={{ textAlign: 'right', padding: '8px 0', opacity: 0.6 }}>Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '8px 0' }}>Input Prompt Tokens</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0' }}>4,200 tokens</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontFamily: 'monospace' }}>$0.0126</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '8px 0' }}>Completion Output Tokens</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0' }}>8,200 tokens</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontFamily: 'monospace' }}>$0.0246</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '8px 0' }}>Semantic Cache Read</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0' }}>2,500 tokens</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontFamily: 'monospace' }}>$0.0025</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      <td style={{ padding: '8px 0' }}>Vector Search / Indexing</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0' }}>1 lookup</td>
+                      <td style={{ textAlign: 'right', padding: '8px 0', fontFamily: 'monospace' }}>$0.0023</td>
+                    </tr>
+                    <tr style={{ fontWeight: 'bold' }}>
+                      <td style={{ padding: '12px 0' }}>Total Cost Per Run</td>
+                      <td style={{ textAlign: 'right', padding: '12px 0' }}>-</td>
+                      <td style={{ textAlign: 'right', padding: '12px 0', color: '#4ade80', fontFamily: 'monospace' }}>$0.0420</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p style={{ fontSize: '10px', opacity: 0.5, margin: 0, lineHeight: 1.4 }}>
+                  Costs calculated using current model prices ($1.50/M input tokens, $3.00/M output tokens). Saved prompts are compiled to minimize tokens.
+                </p>
+              </div>
             </div>
           )}
+
+          {/* Token Cost Grid */}
+          {hasBlock(schema, 'tokenCostGrid') && (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '10px' }}>
+                {blockItems(schema, 'tokenCostGrid').map((m, i) => {
+                  const icons = [
+                    <Coins size={16} style={{ color: '#fbbf24' }} />,
+                    <Cpu size={16} style={{ color: '#3b82f6' }} />,
+                    <Activity size={16} style={{ color: '#10b981' }} />,
+                    <Network size={16} style={{ color: '#a855f7' }} />
+                  ];
+                  return (
+                    <div key={i} style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.8)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.4 0.06 240 / 0.3)`, transition: 'all 0.2s', cursor: 'default' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10px', opacity: 0.5, fontWeight: 700, textTransform: 'uppercase', marginBottom: '6px' }}>
+                        {icons[i]}
+                        {['Cost / Run','Tokens Used','Success Rate','Active Agents'][i]}
+                      </div>
+                      <div style={{ fontSize: '18px', fontWeight: 800, color: design.text || '#e8f0fe' }}>{m.split(' ')[0]}</div>
+                    </div>
+                  );
+                })}
+              </div>
+              <button 
+                onClick={() => setIsCostBreakdownOpen(true)} 
+                style={{ background: 'none', border: 'none', color: design.highlight || '#3b82f6', textDecoration: 'underline', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', padding: 0, fontWeight: 600 }}
+              >
+                <Coins size={12} /> View Detailed Cost Breakdown
+              </button>
+            </div>
+          )}
+
+          {/* Pipelines */}
           {hasBlock(schema, 'agentPipeline') && (
             <div style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.8)', borderRadius: `${design.radius ?? 16}px`, padding: '16px', border: `1px solid oklch(0.4 0.06 240 / 0.3)` }}>
               <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5, marginBottom: '12px' }}>Agent Pipelines</div>
               {blockItems(schema, 'agentPipeline').map((pipeline, i) => {
                 const stages = pipeline.split('→').map((s: string) => s.trim());
+                const currentState = pipelineStates[i] || 'Running';
+                
                 return (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px', flexWrap: 'wrap' as const }}>
                     {stages.map((stage: string, si: number) => (
@@ -2532,44 +2638,213 @@ export function GeneratedRenderer({
                         {si < stages.length - 1 && <span style={{ opacity: 0.4, fontSize: '12px' }}>→</span>}
                       </span>
                     ))}
-                    <span style={{ marginLeft: 'auto', fontSize: '10px', padding: '3px 8px', borderRadius: '999px', background: '#4ade8022', border: '1px solid #4ade8044', color: '#4ade80' }}>● Running</span>
+                    
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {currentState === 'Running' && (
+                        <>
+                          <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '999px', background: '#4ade8022', border: '1px solid #4ade8044', color: '#4ade80', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#4ade80', display: 'inline-block' }}></span>
+                            Running
+                          </span>
+                          <button 
+                            onClick={() => setPipelineStates(prev => ({ ...prev, [i]: 'Paused' }))} 
+                            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px' }}
+                            title="Pause pipeline"
+                          >
+                            <Pause size={10} /> Pause
+                          </button>
+                        </>
+                      )}
+
+                      {currentState === 'Paused' && (
+                        <>
+                          <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '999px', background: '#f59e0b22', border: '1px solid #f59e0b44', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Pause size={8} /> Paused
+                          </span>
+                          <button 
+                            onClick={() => setPipelineStates(prev => ({ ...prev, [i]: 'Running' }))} 
+                            style={{ background: design.highlight || '#3b82f6', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px' }}
+                            title="Resume pipeline"
+                          >
+                            <Play size={10} /> Resume
+                          </button>
+                        </>
+                      )}
+
+                      {currentState === 'Failed' && (
+                        <>
+                          <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '999px', background: '#ef444422', border: '1px solid #ef444444', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <AlertCircle size={8} /> Failed
+                          </span>
+                          <button 
+                            onClick={() => {
+                              setPipelineStates(prev => ({ ...prev, [i]: 'Retrying' }));
+                              // Trigger mock logs for retry
+                              const logBlock = schema.blocks.find(b => b.type === 'agentLogFeed');
+                              const logs = [...(logBlock?.items || [])];
+                              const timestamp = new Date().toLocaleTimeString();
+                              
+                              const newBlocks = schema.blocks.map(b => {
+                                if (b.type === 'agentLogFeed') {
+                                  return {
+                                    ...b,
+                                    items: [
+                                      ...logs,
+                                      `[${timestamp}] [System] Retrying pipeline stage: "${stages[stages.length - 1]}"...`,
+                                      `[${timestamp}] [Compiler] Binding clean variables and executing worker...`
+                                    ]
+                                  };
+                                }
+                                return b;
+                              });
+                              onUpdateSchema?.({ ...schema, blocks: newBlocks });
+
+                              setTimeout(() => {
+                                setPipelineStates(prev => ({ ...prev, [i]: 'Running' }));
+                                const freshLogs = schema.blocks.find(b => b.type === 'agentLogFeed')?.items || [];
+                                const finalBlocks = schema.blocks.map(b => {
+                                  if (b.type === 'agentLogFeed') {
+                                    return {
+                                      ...b,
+                                      items: [
+                                        ...freshLogs,
+                                        `[${new Date().toLocaleTimeString()}] [System] Retry successful. Stage "${stages[stages.length - 1]}" is operational!`,
+                                        `[${new Date().toLocaleTimeString()}] [Agent] Pipeline resumed execution.`
+                                      ]
+                                    };
+                                  }
+                                  return b;
+                                });
+                                onUpdateSchema?.({ ...schema, blocks: finalBlocks });
+                              }, 1000);
+                            }} 
+                            style={{ background: '#ef4444', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '3px 6px', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', fontWeight: 600 }}
+                            title="Retry failed stage"
+                          >
+                            <RefreshCw size={10} /> Retry
+                          </button>
+                        </>
+                      )}
+
+                      {currentState === 'Retrying' && (
+                        <span style={{ fontSize: '10px', padding: '3px 8px', borderRadius: '999px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                          Retrying...
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            {/* Logs */}
             {hasBlock(schema, 'agentLogFeed') && (
-              <div style={{ background: 'oklch(0.10 0.02 240)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.3 0.04 240 / 0.4)` }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, marginBottom: '10px', fontFamily: 'monospace' }}>Live Agent Log</div>
-                {blockItems(schema, 'agentLogFeed').map((log, i) => (
-                  <div key={i} style={{ fontSize: '11px', fontFamily: 'monospace', color: i % 2 === 0 ? '#86efac' : '#93c5fd', marginBottom: '6px', lineHeight: 1.5 }}>{log}</div>
-                ))}
+              <div style={{ background: 'oklch(0.10 0.02 240)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.3 0.04 240 / 0.4)`, display: 'flex', flexDirection: 'column', height: '180px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.4, fontFamily: 'monospace' }}>Live Agent Log</div>
+                  <button 
+                    onClick={() => {
+                      const newBlocks = schema.blocks.map(b => {
+                        if (b.type === 'agentLogFeed') return { ...b, items: [`[${new Date().toLocaleTimeString()}] Logs cleared by orchestrator.`] };
+                        return b;
+                      });
+                      onUpdateSchema?.({ ...schema, blocks: newBlocks });
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '9px', cursor: 'pointer', opacity: 0.7, padding: 0 }}
+                  >
+                    Clear Logs
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column-reverse', gap: '4px' }}>
+                  {isCompilingAgent && (
+                    <div style={{ fontSize: '11px', fontFamily: 'monospace', color: '#fbbf24', animation: 'pulse 1.5s infinite', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                      Compiling prompt changes... [████████░░] 80%
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {blockItems(schema, 'agentLogFeed').map((log, i) => (
+                      <div key={i} style={{ fontSize: '11px', fontFamily: 'monospace', color: log.includes('CRITICAL') || log.includes('failed') || log.includes('Failed') ? '#ef4444' : log.includes('Compiling') || log.includes('Saving') || log.includes('Retrying') ? '#fbbf24' : i % 2 === 0 ? '#86efac' : '#93c5fd', lineHeight: 1.4 }}>
+                        {log}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
+
+            {/* Prompt Editor */}
             {hasBlock(schema, 'promptEditor') && (
-              <div style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.8)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.4 0.06 240 / 0.3)`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5 }}>System Prompt Editor</div>
-                <textarea ref={promptTextareaRef} defaultValue={blockItems(schema, 'promptEditor')[0] || 'You are a helpful agent...'} style={{ flex: 1, minHeight: '80px', background: 'oklch(0.12 0.02 240)', border: '1px solid oklch(0.35 0.04 240 / 0.4)', borderRadius: '8px', padding: '8px', fontSize: '11px', color: design.text || '#e8f0fe', fontFamily: 'monospace', resize: 'vertical' }} />
+              <div style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.8)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.4 0.06 240 / 0.3)`, display: 'flex', flexDirection: 'column', gap: '8px', height: '180px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5 }}>System Prompt Editor</div>
+                  {isCompilingAgent && (
+                    <span style={{ fontSize: '10px', color: '#fbbf24', fontWeight: 600 }}>Compiling...</span>
+                  )}
+                </div>
+                <textarea 
+                  value={promptEditorValue} 
+                  onChange={(e) => setPromptEditorValue(e.target.value)} 
+                  style={{ flex: 1, minHeight: '60px', background: 'oklch(0.12 0.02 240)', border: '1px solid oklch(0.35 0.04 240 / 0.4)', borderRadius: '8px', padding: '8px', fontSize: '11px', color: design.text || '#e8f0fe', fontFamily: 'monospace', resize: 'none' }} 
+                />
                 <button
+                  disabled={isCompilingAgent}
                   onClick={() => {
-                    const text = promptTextareaRef.current?.value || '';
-                    const newBlocks = schema.blocks.map(b => {
-                      if (b.type === 'promptEditor') {
-                        return { ...b, items: [text] };
-                      }
-                      if (b.type === 'agentLogFeed') {
-                        const currentLogs = b.items || [];
-                        return { ...b, items: [...currentLogs, `[${new Date().toLocaleTimeString()}] Saved system prompt: "${text.slice(0, 40)}..."`] };
-                      }
+                    if (isCompilingAgent) return;
+                    setIsCompilingAgent(true);
+                    
+                    const logBlock = schema.blocks.find(b => b.type === 'agentLogFeed');
+                    const currentLogs = [...(logBlock?.items || [])];
+                    const timestamp = new Date().toLocaleTimeString();
+                    
+                    const updatedLogs = [
+                      ...currentLogs,
+                      `[${timestamp}] [System] Saving custom prompt rules...`,
+                      `[${timestamp}] [Compiler] Parsing system instructions & optimizing weights...`
+                    ];
+                    
+                    const newBlocks1 = schema.blocks.map(b => {
+                      if (b.type === 'promptEditor') return { ...b, items: [promptEditorValue] };
+                      if (b.type === 'agentLogFeed') return { ...b, items: updatedLogs };
                       return b;
                     });
-                    if (onUpdateSchema) {
-                      onUpdateSchema({ ...schema, blocks: newBlocks });
-                    }
+                    onUpdateSchema?.({ ...schema, blocks: newBlocks1 });
+                    
+                    setTimeout(() => {
+                      const finalLogs = [
+                        ...updatedLogs,
+                        `[${new Date().toLocaleTimeString()}] [Compiler] Prompt AST compilation passed. Output optimized.`,
+                        `[${new Date().toLocaleTimeString()}] [System] Hot-swapped active instructions.`,
+                        `[${new Date().toLocaleTimeString()}] [Agent] Initialized telemetry pipeline successfully.`
+                      ];
+                      
+                      const newBlocks2 = schema.blocks.map(b => {
+                        if (b.type === 'promptEditor') return { ...b, items: [promptEditorValue] };
+                        if (b.type === 'agentLogFeed') return { ...b, items: finalLogs };
+                        if (b.type === 'tokenCostGrid') {
+                          return {
+                            ...b,
+                            items: [
+                              `$0.038 / run`,
+                              `11,200 tokens`,
+                              `98% success`,
+                              `3 active`
+                            ]
+                          };
+                        }
+                        return b;
+                      });
+                      
+                      onUpdateSchema?.({ ...schema, blocks: newBlocks2 });
+                      setIsCompilingAgent(false);
+                    }, 1200);
                   }}
-                  style={{ padding: '6px 12px', borderRadius: '8px', background: design.highlight || '#3b82f6', color: '#fff', border: 'none', fontWeight: 600, fontSize: '11px', cursor: 'pointer', alignSelf: 'flex-end' }}
+                  style={{ padding: '6px 12px', borderRadius: '8px', background: isCompilingAgent ? 'oklch(0.3 0.02 240)' : (design.highlight || '#3b82f6'), color: '#fff', border: 'none', fontWeight: 600, fontSize: '11px', cursor: isCompilingAgent ? 'default' : 'pointer', alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: '4px' }}
                 >
+                  {isCompilingAgent ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <CheckCircle size={12} />}
                   Save Prompt
                 </button>
               </div>

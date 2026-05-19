@@ -56,26 +56,55 @@ export function makePlans(ir: ParseIR, prod: string, feats: string[]): Plan[] {
   
   const defaultNames = ['Starter', 'Growth', 'Pro', 'Premium', 'Scale'];
   const extractedNames: string[] = [];
-  const ignored = new Set(['for', 'and', 'a', 'an', 'the', 'at', 'with', 'or', 'of', 'to', 'is', 'are', 'pricing', 'called', 'named', 'plan', 'plans']);
-  
+
+  // Words that are ignored when scanning text before a price for a plan name
+  const ignored = new Set([
+    'for', 'and', 'a', 'an', 'the', 'at', 'with', 'or', 'of', 'to', 'is', 'are',
+    'pricing', 'called', 'named', 'plan', 'plans',
+    // Time-unit words that appear inside or right after price strings
+    'month', 'year', 'week', 'mo', 'yr',
+    // Common adjectives that are never plan names
+    'card', 'cards', 'tier', 'tiers', 'display', 'create', 'make', 'add',
+    'sleek', 'modern', 'clean', 'local', 'first', 'interactive', 'premium',
+  ]);
+
   // Sort prices by their position in the prompt to ensure correct mapping
   const sortedPrices = [...ir.entities.prices].sort((a, b) => a.start - b.start);
-  
+
   sortedPrices.forEach((p) => {
-    const sub = ir.original.slice(Math.max(0, p.start - 30), p.start);
+    // Look at the 40 chars before the price token for a candidate name word
+    const sub = ir.original.slice(Math.max(0, p.start - 40), p.start);
     const words = sub.replace(/[^a-zA-Z0-9]/g, ' ').split(/\s+/).map(w => w.trim()).filter(Boolean);
-    const validWords = words.filter(w => !ignored.has(w.toLowerCase()));
-    if (validWords.length > 0) {
-      const name = title(validWords[validWords.length - 1]);
+
+    // Only keep words that could plausibly be a plan name:
+    //  - not in ignore list
+    //  - not a pure number (e.g. "79", "129")
+    //  - starts with an uppercase letter in the *original* substring (user explicitly capitalised it)
+    const planNameWords = words.filter(w => {
+      const lower = w.toLowerCase();
+      if (ignored.has(lower)) return false;
+      if (/^\d+$/.test(w)) return false;          // pure number
+      // Must start with uppercase in the original to qualify as a proper name
+      if (!/^[A-Z]/.test(w)) return false;
+      return true;
+    });
+
+    if (planNameWords.length > 0) {
+      const name = planNameWords[planNameWords.length - 1];
       if (name && !extractedNames.includes(name)) {
         extractedNames.push(name);
       }
     }
   });
 
+  // Only use extracted names if we got a meaningful set (≥ half the plans named).
+  // A partial extraction (e.g. 1 name out of 4 plans) would mix real names with
+  // defaults in confusing ways — better to fall back to all defaults.
+  const useExtractedNames = extractedNames.length >= Math.ceil(count / 2);
+
   const names: string[] = [];
   for (let i = 0; i < count; i++) {
-    if (extractedNames[i]) {
+    if (useExtractedNames && extractedNames[i]) {
       names.push(extractedNames[i]);
     } else {
       const unusedDefault = defaultNames.find(dn => !names.includes(dn));

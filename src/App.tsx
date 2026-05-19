@@ -117,15 +117,31 @@ export default function App() {
     setStatusMessage('Working schema reset to latest generated prompt output.');
   };
 
-  const useTemplate = (prompt: string, generateNow = false) => {
+  const useTemplate = async (prompt: string, generateNow = false) => {
     setDraftPrompt(prompt);
     if (generateNow) {
       setGeneratedPrompt(prompt);
-      const baseline = resetWorkingSchema(buildSchema(prompt));
-      setGeneratedBaselineSchema(baseline);
-      setWorkingSchema(resetWorkingSchema(baseline));
       setSelected(null);
-      setStatusMessage('Template applied and generated.');
+      if (assistMode === 'ai-assist') {
+        setStatusMessage('AI Assist generating template...');
+        const result = await generateInterfaceFromPrompt(prompt, { mode: 'mock' });
+        const baseline = resetWorkingSchema(result.schema);
+        setGeneratedBaselineSchema(baseline);
+        setWorkingSchema(resetWorkingSchema(baseline));
+        setStatusMessage(`AI Assist generated template via ${result.provider}${result.warnings.length ? ` (${result.warnings.join('; ')})` : ''}.`);
+      } else if (assistMode === 'hybrid') {
+        setStatusMessage('Hybrid Orchestrator generating template...');
+        const result = await generateInterfaceFromPrompt(prompt, { mode: 'hybrid', forceSlowPath });
+        const baseline = resetWorkingSchema(result.schema);
+        setGeneratedBaselineSchema(baseline);
+        setWorkingSchema(resetWorkingSchema(baseline));
+        setStatusMessage(`Hybrid Orchestrator routed template via ${result.provider}${result.warnings.length ? ` (${result.warnings.join('; ')})` : ''}.`);
+      } else {
+        const baseline = resetWorkingSchema(buildSchema(prompt));
+        setGeneratedBaselineSchema(baseline);
+        setWorkingSchema(resetWorkingSchema(baseline));
+        setStatusMessage('Template applied deterministically.');
+      }
     } else {
       setStatusMessage('Template loaded into draft prompt.');
     }
