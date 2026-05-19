@@ -351,6 +351,7 @@ export default function App() {
                 selection={selected}
                 onSelect={setSelected}
                 onReorderBlock={(source, target) => setWorkingSchema(moveBlock(schema, source, target))}
+                onUpdateSchema={setWorkingSchema}
                 sandboxState={sandboxState}
                 sandboxTheme={sandboxTheme}
               />

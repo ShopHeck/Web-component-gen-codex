@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Send, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Activity, Cpu, Network, Wifi, Zap, Radio, Lock, Unlock, Settings, Terminal, Bell, Play, RefreshCw } from 'lucide-react';
 import { usMilitaryBasesDatasetNotice, usMilitaryBasesSample } from '../data/usMilitaryBases';
@@ -70,6 +70,7 @@ export function GeneratedRenderer({
   selection,
   onSelect,
   onReorderBlock,
+  onUpdateSchema,
   sandboxState = 'ideal',
   sandboxTheme = 'default',
 }: {
@@ -79,10 +80,12 @@ export function GeneratedRenderer({
   selection: Selection;
   onSelect: (s: Selection) => void;
   onReorderBlock?: (source: number, target: number) => void;
+  onUpdateSchema?: (schema: Schema) => void;
   sandboxState?: 'ideal' | 'empty' | 'loading' | 'error';
   sandboxTheme?: 'default' | 'cyberpunk' | 'glassmorphism' | 'retro';
 }) {
   const { blocks = [] } = schema;
+  const promptTextareaRef = useRef<HTMLTextAreaElement>(null);
   const originalPrompt = (schema as any).generationMeta?.originalPrompt?.toLowerCase() || '';
   const optimizedPrompt = (schema as any).generationMeta?.optimizedPrompt?.toLowerCase() || '';
   const hasDateFilter = originalPrompt.includes('date') || optimizedPrompt.includes('date');
@@ -2434,8 +2437,28 @@ export function GeneratedRenderer({
             {hasBlock(schema, 'promptEditor') && (
               <div style={{ background: design.cardBg || 'oklch(0.18 0.03 250 / 0.8)', borderRadius: `${design.radius ?? 16}px`, padding: '14px', border: `1px solid oklch(0.4 0.06 240 / 0.3)`, display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', opacity: 0.5 }}>System Prompt Editor</div>
-                <textarea defaultValue={blockItems(schema, 'promptEditor')[0] || 'You are a helpful agent...'} style={{ flex: 1, minHeight: '80px', background: 'oklch(0.12 0.02 240)', border: '1px solid oklch(0.35 0.04 240 / 0.4)', borderRadius: '8px', padding: '8px', fontSize: '11px', color: design.text || '#e8f0fe', fontFamily: 'monospace', resize: 'vertical' }} />
-                <button style={{ padding: '6px 12px', borderRadius: '8px', background: design.highlight || '#3b82f6', color: '#fff', border: 'none', fontWeight: 600, fontSize: '11px', cursor: 'pointer', alignSelf: 'flex-end' }}>Save Prompt</button>
+                <textarea ref={promptTextareaRef} defaultValue={blockItems(schema, 'promptEditor')[0] || 'You are a helpful agent...'} style={{ flex: 1, minHeight: '80px', background: 'oklch(0.12 0.02 240)', border: '1px solid oklch(0.35 0.04 240 / 0.4)', borderRadius: '8px', padding: '8px', fontSize: '11px', color: design.text || '#e8f0fe', fontFamily: 'monospace', resize: 'vertical' }} />
+                <button
+                  onClick={() => {
+                    const text = promptTextareaRef.current?.value || '';
+                    const newBlocks = schema.blocks.map(b => {
+                      if (b.type === 'promptEditor') {
+                        return { ...b, items: [text] };
+                      }
+                      if (b.type === 'agentLogFeed') {
+                        const currentLogs = b.items || [];
+                        return { ...b, items: [...currentLogs, `[${new Date().toLocaleTimeString()}] Saved system prompt: "${text.slice(0, 40)}..."`] };
+                      }
+                      return b;
+                    });
+                    if (onUpdateSchema) {
+                      onUpdateSchema({ ...schema, blocks: newBlocks });
+                    }
+                  }}
+                  style={{ padding: '6px 12px', borderRadius: '8px', background: design.highlight || '#3b82f6', color: '#fff', border: 'none', fontWeight: 600, fontSize: '11px', cursor: 'pointer', alignSelf: 'flex-end' }}
+                >
+                  Save Prompt
+                </button>
               </div>
             )}
           </div>
