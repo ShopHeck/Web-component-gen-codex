@@ -3,7 +3,7 @@ import { evaluateQuality } from '../generator/quality';
 import type { BlockType, InterfaceBlock, Schema, RequirementBucket } from '../types/schema';
 
 export type AIAssistMode = 'mock' | 'provider' | 'hybrid';
-export type GenerateInterfaceOptions = { mode?: AIAssistMode; provider?: InterfaceProvider; forceSlowPath?: boolean; timeoutMs?: number };
+export type GenerateInterfaceOptions = { mode?: AIAssistMode; provider?: InterfaceProvider; forceSlowPath?: boolean; timeoutMs?: number; providerNote?: string };
 export type AISchemaContract = {
   title: string;
   description?: string;
@@ -497,8 +497,8 @@ function mapContractToSchema(prompt: string, contract: AISchemaContract): Schema
 export async function generateInterfaceFromPrompt(prompt: string, options: GenerateInterfaceOptions = {}): Promise<GenerateInterfaceResult> {
   const mode = options.mode ?? 'mock';
   const timeoutMs = options.timeoutMs ?? 1800;
-  const useProvider = mode === 'provider' || (mode === 'hybrid' && (options.provider?.id !== 'mock')) || (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_IF_AI_PROVIDER === '1');
   const provider = options.provider ?? mockProvider;
+  const useProvider = provider.id !== 'mock' && mode !== 'mock';
 
   if (mode === 'hybrid') {
     // 1. Run fast deterministic parser first to detect pattern
@@ -563,7 +563,8 @@ export async function generateInterfaceFromPrompt(prompt: string, options: Gener
     if (quality.promptCoverageScore < 70) warnings.push('Schema misses part of prompt intent.');
     if (warnings.some((w) => w.includes('Unsupported block'))) warnings.push('unsupported_ai_block');
     if (warnings.some((w) => w.includes('missing_required_interaction'))) warnings.push('missing_required_interaction');
-    return { schema, contract, warnings, provider: useProvider ? provider.id : 'mock' };
+    const noteWarnings = options.providerNote ? [...warnings, options.providerNote] : warnings;
+    return { schema, contract, warnings: noteWarnings, provider: useProvider ? provider.id : 'mock' };
   } catch {
     const fallback = buildSchema(prompt);
     return {

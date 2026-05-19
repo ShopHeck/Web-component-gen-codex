@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { generateInterfaceFromPrompt } from './ai/generateInterface';
+import { resolveAIProviderFromEnv } from './ai/openAIProvider';
 import { buildSchema } from './generator/parser';
 import { buildExportPackage, downloadZip, exportPackageText } from './export/package';
 import { applySafeRepairs, evaluateQuality } from './generator/quality';
@@ -43,6 +44,13 @@ export default function App() {
   const [editDirective, setEditDirective] = useState('');
   const [editFeedback, setEditFeedback] = useState('');
   const [isAIProcessing, setIsAIProcessing] = useState(false);
+
+  const providerSelection = useMemo(() => resolveAIProviderFromEnv({
+    provider: import.meta.env.VITE_INTERFACEFORGE_AI_PROVIDER,
+    apiKey: import.meta.env.VITE_INTERFACEFORGE_OPENAI_API_KEY,
+    model: import.meta.env.VITE_INTERFACEFORGE_OPENAI_MODEL
+  }), []);
+
 
   // Sandbox State & Visual Theme Integration
   const [sandboxState, setSandboxState] = useState<'ideal' | 'loading' | 'empty' | 'error'>('ideal');
@@ -124,7 +132,7 @@ export default function App() {
       setSelected(null);
       if (assistMode === 'ai-assist') {
         setStatusMessage('AI Assist generating template...');
-        const result = await generateInterfaceFromPrompt(prompt, { mode: 'mock' });
+        const result = await generateInterfaceFromPrompt(prompt, { mode: 'provider', provider: providerSelection.provider, providerNote: providerSelection.note });
         const baseline = resetWorkingSchema(result.schema);
         setGeneratedBaselineSchema(baseline);
         setWorkingSchema(resetWorkingSchema(baseline));
@@ -156,7 +164,7 @@ export default function App() {
         onGenerate={async () => {
           setGeneratedPrompt(draftPrompt);
           if (assistMode === 'ai-assist') {
-            const result = await generateInterfaceFromPrompt(draftPrompt, { mode: 'mock' });
+            const result = await generateInterfaceFromPrompt(draftPrompt, { mode: 'provider', provider: providerSelection.provider, providerNote: providerSelection.note });
             const baseline = resetWorkingSchema(result.schema);
             setGeneratedBaselineSchema(baseline);
             setWorkingSchema(resetWorkingSchema(baseline));
@@ -192,6 +200,9 @@ export default function App() {
             AI Assist Mode: richer custom schema generation.
             <br />
             Mock provider is active unless explicitly configured otherwise.
+            <br />
+            Current AI provider: {providerSelection.provider.id === 'mock' ? 'Mock' : 'OpenAI-compatible'}.
+            {providerSelection.warning ? <><br />⚠ {providerSelection.warning}</> : null}
           </p>
 
           <Section title="Generation mode" n="02" />

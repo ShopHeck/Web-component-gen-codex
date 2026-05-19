@@ -28,6 +28,7 @@ function compileExportPackage(prompt: string) {
   const combined = [pkg.readme, pkg.component.code, pkg.packageJson].join('\n');
   expect(combined).not.toMatch(/https?:\/\//i);
   expect(combined).not.toMatch(/fetch\(|axios|openai|api key|bearer/i);
+  expect(combined).not.toMatch(/VITE_INTERFACEFORGE_|OPENAI_API_KEY|AI_PROVIDER/i);
 
   const root = mkdtempSync(join(tmpdir(), 'if-export-smoke-'));
   mkdirSync(join(root, 'src'), { recursive: true });
