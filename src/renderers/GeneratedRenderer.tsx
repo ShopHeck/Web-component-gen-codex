@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send } from 'lucide-react';
+import { Send, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Activity, Cpu, Network, Wifi, Zap, Radio, Lock, Unlock, Settings, Terminal, Bell, Play, RefreshCw } from 'lucide-react';
 import { usMilitaryBasesDatasetNotice, usMilitaryBasesSample } from '../data/usMilitaryBases';
 import { projectMarker } from './globeProjection';
 import type { Plan, Schema, Tokens, Viewport } from '../types/schema';
@@ -83,6 +83,12 @@ export function GeneratedRenderer({
   sandboxTheme?: 'default' | 'cyberpunk' | 'glassmorphism' | 'retro';
 }) {
   const { blocks = [] } = schema;
+  const originalPrompt = (schema as any).generationMeta?.originalPrompt?.toLowerCase() || '';
+  const optimizedPrompt = (schema as any).generationMeta?.optimizedPrompt?.toLowerCase() || '';
+  const hasDateFilter = originalPrompt.includes('date') || optimizedPrompt.includes('date');
+  const hasSparklines = originalPrompt.includes('sparkline') || optimizedPrompt.includes('sparkline');
+  const hasExport = originalPrompt.includes('export') || optimizedPrompt.includes('export');
+
 
   const renderDraggableBlock = (type: string, children: React.ReactNode, className = '') => {
     const idx = schema.blocks.findIndex((b) => b.type === type);
@@ -150,6 +156,31 @@ export function GeneratedRenderer({
   const [astState, setAstState] = useState<Record<string, any>>(() => {
     return schema.dynamicAST?.state ? { ...schema.dynamicAST.state } : {};
   });
+
+  // Cybersecurity Operations Cockpit State
+  const [defcon, setDefcon] = useState<number>(3);
+  const [firewallStrict, setFirewallStrict] = useState<boolean>(true);
+  const [dpiEnabled, setDpiEnabled] = useState<boolean>(false);
+  const [selectedThreatSector, setSelectedThreatSector] = useState<string>('');
+  const [isolatedNodes, setIsolatedNodes] = useState<Record<string, boolean>>({
+    database: false,
+    authServer: false,
+    apiGateway: false,
+    cdnEdge: true,
+  });
+  const [activeThreats, setActiveThreats] = useState<Array<{ id: string; sector: string; classification: string; status: 'Hostile' | 'Warning' | 'Isolated'; ip: string; time: string }>>([
+    { id: 'TR-104', sector: 'Sector 4', classification: 'SQL Intrusion Attempt', status: 'Hostile', ip: '198.51.100.42', time: '17:01:22' },
+    { id: 'TR-802', sector: 'Sector 1', classification: 'DDoS Traffic Spike', status: 'Warning', ip: '203.0.113.88', time: '17:05:40' },
+    { id: 'TR-309', sector: 'Sector 9', classification: 'SSH Brute Force', status: 'Isolated', ip: '192.0.2.147', time: '17:06:15' },
+  ]);
+  const [cyberLogs, setCyberLogs] = useState<Array<{ id: number; time: string; msg: string; type: 'system' | 'firewall' | 'intrusion' | 'isolation' }>>([
+    { id: 1, time: '17:00:00', msg: 'Tactical Cyber Command core online. Security sweep active.', type: 'system' },
+    { id: 2, time: '17:01:22', msg: 'CRITICAL: Hostile SQL Injection detected in Sector 4 from 198.51.100.42.', type: 'intrusion' },
+    { id: 3, time: '17:03:00', msg: 'Firewall: Strict posture verified. Node isolation ready.', type: 'firewall' },
+    { id: 4, time: '17:05:40', msg: 'WARNING: Unusual DDoS volume pattern detected in Sector 1.', type: 'intrusion' },
+    { id: 5, time: '17:06:15', msg: 'Isolation: CDN Edge isolated automatically on anomalous payload detection.', type: 'isolation' },
+  ]);
+  const [cyberLogFilter, setCyberLogFilter] = useState<'all' | 'intrusion' | 'firewall' | 'isolation'>('all');
 
   useEffect(() => {
     if (schema.dynamicAST?.state) {
@@ -921,19 +952,443 @@ export function GeneratedRenderer({
       )}
 
       {schema.pattern === 'dashboard' && (
-        <div className={`hf-dashboard generated-grid ${grid}`}>
-          {schema.metrics.map((m) => (
-            <article className="hf-metric-card" key={m.label} onMouseMove={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-              e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-            }}>
-              <p className="hf-metric-label">{m.label}</p>
-              <div className="hf-metric-value">{m.value}</div>
-              <span className={`hf-metric-delta ${m.delta.startsWith('-') ? 'negative' : ''}`}>{m.delta}</span>
-            </article>
-          ))}
-        </div>
+        hasBlock(schema, 'threatRadar') ? (
+          <div className="cyber-noc-cockpit" data-testid="dashboard-pattern">
+            {defcon === 1 && <div className="red-alert-overlay" />}
+            
+            <div className="cyber-noc-header">
+              <div className="noc-title-area">
+                <div className={`noc-glowing-indicator ${defcon === 1 ? 'noc-indicator-defcon1' : ''}`} />
+                <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: '#00f2fe', textShadow: '0 0 10px rgba(0,242,254,0.3)' }}>
+                  {schema.headline || 'NOC TACTICAL OPERATIONS COCKPIT'}
+                </h2>
+              </div>
+              
+              <div className="defcon-controller">
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase' }}>DEFCON:</span>
+                {[5, 4, 3, 2, 1].map((level) => (
+                  <button
+                    key={level}
+                    onClick={() => {
+                      setDefcon(level);
+                      notify(`DEFCON level updated to ${level}`);
+                      setCyberLogs(prev => [
+                        {
+                          id: Date.now(),
+                          time: new Date().toLocaleTimeString().split(' ')[0],
+                          msg: `SYSTEM: DEFCON level changed to ${level}. Threat awareness matrix recalibrating.`,
+                          type: 'system'
+                        },
+                        ...prev
+                      ]);
+                    }}
+                    className={`defcon-btn defcon-${level} ${defcon === level ? 'active' : ''}`}
+                    title={`DEFCON ${level}`}
+                  >
+                    {level}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="noc-grid">
+              {/* Radar Sweeper */}
+              <div className="noc-panel">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#00f2fe', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Radio size={14} className="threat-pulse-hostile" /> TACTICAL THREAT RADAR SWEEP
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>SWEEP ANGLE: ACTIVE</span>
+                </div>
+                
+                <div className="radar-section">
+                  <svg width="300" height="300" style={{ background: '#020617', borderRadius: '50%', border: '1px solid rgba(0, 242, 254, 0.15)' }}>
+                    {/* Concentric Circles */}
+                    <circle cx="150" cy="150" r="140" fill="none" stroke="rgba(0, 242, 254, 0.08)" strokeWidth="1" />
+                    <circle cx="150" cy="150" r="110" fill="none" stroke="rgba(0, 242, 254, 0.1)" strokeWidth="1" />
+                    <circle cx="150" cy="150" r="80" fill="none" stroke="rgba(0, 242, 254, 0.12)" strokeWidth="1" />
+                    <circle cx="150" cy="150" r="50" fill="none" stroke="rgba(0, 242, 254, 0.15)" strokeWidth="1" />
+                    <circle cx="150" cy="150" r="20" fill="none" stroke="rgba(0, 242, 254, 0.2)" strokeWidth="1" />
+                    
+                    {/* Radar Crosshairs */}
+                    <line x1="10" y1="150" x2="290" y2="150" stroke="rgba(0, 242, 254, 0.1)" strokeWidth="1" />
+                    <line x1="150" y1="10" x2="150" y2="290" stroke="rgba(0, 242, 254, 0.1)" strokeWidth="1" />
+                    
+                    {/* Rotating Sweep */}
+                    <g className="radar-sweep-line">
+                      <line x1="150" y1="150" x2="150" y2="10" stroke="url(#sweepGrad)" strokeWidth="2.5" />
+                    </g>
+                    
+                    <defs>
+                      <linearGradient id="sweepGrad" x1="0%" y1="100%" x2="0%" y2="0%">
+                        <stop offset="0%" stopColor="#00f2fe" stopOpacity="0" />
+                        <stop offset="80%" stopColor="#00f2fe" stopOpacity="0.4" />
+                        <stop offset="100%" stopColor="#00f2fe" stopOpacity="1" />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Threat markers map. We render SVG dots at fixed coordinate calculated angles for sectors! */}
+                    {/* Sector 1: 35deg, Sector 4: 135deg, Sector 9: 280deg */}
+                    {activeThreats.map((threat) => {
+                      let angle = 0;
+                      let radius = 100;
+                      if (threat.sector.includes('1')) { angle = 35; radius = 120; }
+                      else if (threat.sector.includes('4')) { angle = 135; radius = 90; }
+                      else if (threat.sector.includes('9')) { angle = 280; radius = 60; }
+                      else {
+                        const secNum = parseInt(threat.sector.replace(/\D/g, ''), 10) || 5;
+                        angle = (secNum * 30) % 360;
+                        radius = 40 + (secNum * 15) % 100;
+                      }
+                      
+                      const rad = (angle * Math.PI) / 180;
+                      const cx = 150 + radius * Math.cos(rad);
+                      const cy = 150 + radius * Math.sin(rad);
+                      
+                      const isHostile = threat.status === 'Hostile';
+                      const isWarning = threat.status === 'Warning';
+                      
+                      const dotColor = isHostile ? '#ef4444' : isWarning ? '#eab308' : '#06b6d4';
+                      
+                      return (
+                        <g key={threat.id} style={{ cursor: 'pointer' }} onClick={() => {
+                          setSelectedThreatSector(threat.sector);
+                          notify(`Selected Sector: ${threat.sector}`);
+                        }}>
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={isHostile ? 12 : 9}
+                            fill={dotColor}
+                            fillOpacity="0.15"
+                            className={isHostile ? 'threat-pulse-hostile' : isWarning ? 'threat-pulse-warning' : ''}
+                          />
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={isHostile ? 6 : 4}
+                            fill={dotColor}
+                          />
+                          <text x={cx + 10} y={cy + 4} fill={dotColor} fontSize="9" fontWeight="bold">
+                            {threat.id}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+                  
+                  {selectedThreatSector && (
+                    <div style={{ marginTop: '12px', padding: '8px 12px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', fontSize: '11px', display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                      <span>SECTOR INTRUSION ACTIVE: <strong>{selectedThreatSector}</strong></span>
+                      <button onClick={() => setSelectedThreatSector('')} style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>CLEAR</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Topology / Architecture Node Isolation */}
+              <div className="noc-panel">
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#00f2fe', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Network size={14} /> CLOUD LOGICAL TOPOLOGY & NETWORK ISOLATION
+                </span>
+                
+                <div className="topology-flow">
+                  <div className="topology-row">
+                    <div
+                      className={`topology-node ${isolatedNodes.cdnEdge ? 'isolated' : ''}`}
+                      onClick={() => {
+                        const next = !isolatedNodes.cdnEdge;
+                        setIsolatedNodes(prev => ({ ...prev, cdnEdge: next }));
+                        notify(`CDN Edge: ${next ? 'ISOLATED' : 'ONLINE'}`);
+                        setCyberLogs(prev => [
+                          {
+                            id: Date.now(),
+                            time: new Date().toLocaleTimeString().split(' ')[0],
+                            msg: `Isolation: CDN Edge routing node status updated to ${next ? 'ISOLATED' : 'ONLINE'}.`,
+                            type: 'isolation'
+                          },
+                          ...prev
+                        ]);
+                      }}
+                    >
+                      <div className="node-icon-wrapper">
+                        <Wifi size={16} />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 700 }}>CDN Edge</div>
+                      <span className={`node-status-label ${isolatedNodes.cdnEdge ? 'status-isolated' : 'status-online'}`}>
+                        {isolatedNodes.cdnEdge ? 'ISOLATED' : 'ONLINE'}
+                      </span>
+                    </div>
+
+                    <div
+                      className={`topology-node ${isolatedNodes.apiGateway ? 'isolated' : ''}`}
+                      onClick={() => {
+                        const next = !isolatedNodes.apiGateway;
+                        setIsolatedNodes(prev => ({ ...prev, apiGateway: next }));
+                        notify(`API Gateway: ${next ? 'ISOLATED' : 'ONLINE'}`);
+                        setCyberLogs(prev => [
+                          {
+                            id: Date.now(),
+                            time: new Date().toLocaleTimeString().split(' ')[0],
+                            msg: `Isolation: API Gateway perimeter shield status updated to ${next ? 'ISOLATED' : 'ONLINE'}.`,
+                            type: 'isolation'
+                          },
+                          ...prev
+                        ]);
+                      }}
+                    >
+                      <div className="node-icon-wrapper">
+                        <Cpu size={16} />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 700 }}>API Gateway</div>
+                      <span className={`node-status-label ${isolatedNodes.apiGateway ? 'status-isolated' : 'status-online'}`}>
+                        {isolatedNodes.apiGateway ? 'ISOLATED' : 'ONLINE'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'center', height: '10px', display: 'flex', justifyContent: 'space-around', color: 'rgba(0,242,254,0.1)' }}>
+                    <span>│</span>
+                    <span>│</span>
+                  </div>
+
+                  <div className="topology-row">
+                    <div
+                      className={`topology-node ${isolatedNodes.authServer ? 'isolated' : ''}`}
+                      onClick={() => {
+                        const next = !isolatedNodes.authServer;
+                        setIsolatedNodes(prev => ({ ...prev, authServer: next }));
+                        notify(`Auth Server: ${next ? 'ISOLATED' : 'ONLINE'}`);
+                        setCyberLogs(prev => [
+                          {
+                            id: Date.now(),
+                            time: new Date().toLocaleTimeString().split(' ')[0],
+                            msg: `Isolation: OAuth identity database node status updated to ${next ? 'ISOLATED' : 'ONLINE'}.`,
+                            type: 'isolation'
+                          },
+                          ...prev
+                        ]);
+                      }}
+                    >
+                      <div className="node-icon-wrapper">
+                        {isolatedNodes.authServer ? <Lock size={16} /> : <Unlock size={16} />}
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 700 }}>Auth Server</div>
+                      <span className={`node-status-label ${isolatedNodes.authServer ? 'status-isolated' : 'status-online'}`}>
+                        {isolatedNodes.authServer ? 'ISOLATED' : 'ONLINE'}
+                      </span>
+                    </div>
+
+                    <div
+                      className={`topology-node ${isolatedNodes.database ? 'isolated' : ''}`}
+                      onClick={() => {
+                        const next = !isolatedNodes.database;
+                        setIsolatedNodes(prev => ({ ...prev, database: next }));
+                        notify(`User Database: ${next ? 'ISOLATED' : 'ONLINE'}`);
+                        setCyberLogs(prev => [
+                          {
+                            id: Date.now(),
+                            time: new Date().toLocaleTimeString().split(' ')[0],
+                            msg: `Isolation: Database read replica cluster status updated to ${next ? 'ISOLATED' : 'ONLINE'}.`,
+                            type: 'isolation'
+                          },
+                          ...prev
+                        ]);
+                      }}
+                    >
+                      <div className="node-icon-wrapper">
+                        <Activity size={16} />
+                      </div>
+                      <div style={{ fontSize: '12px', fontWeight: 700 }}>User Database</div>
+                      <span className={`node-status-label ${isolatedNodes.database ? 'status-isolated' : 'status-online'}`}>
+                        {isolatedNodes.database ? 'ISOLATED' : 'ONLINE'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: '6px' }}>
+                  *Click node modules above to execute instant physical sandboxing.
+                </div>
+              </div>
+            </div>
+
+            {/* Cyber Terminal Log Feed */}
+            <div className="noc-panel">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#00f2fe', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Terminal size={14} /> CLASSIFICATION & TELEMETRY LOGS
+                </span>
+                
+                <div className="terminal-tabs">
+                  {(['all', 'intrusion', 'firewall', 'isolation'] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setCyberLogFilter(tab)}
+                      className={`terminal-tab-btn ${cyberLogFilter === tab ? 'active' : ''}`}
+                    >
+                      {tab.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="cyber-terminal">
+                {cyberLogs
+                  .filter(log => cyberLogFilter === 'all' || log.type === cyberLogFilter)
+                  .map((log) => (
+                    <div key={log.id} className={`cyber-log-item log-type-${log.type}`}>
+                      <span className="log-time">[{log.time}]</span>
+                      <span className="log-body">{log.msg}</span>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+
+            {/* Footer Control Panel */}
+            <div className="cyber-cockpit-footer">
+              <button
+                className="intrusion-sim-btn"
+                onClick={() => {
+                  const sectors = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+                  const chosenSector = sectors[Math.floor(Math.random() * sectors.length)];
+                  const threatClassifications = [
+                    'Ransomware Payload Injection Attempt',
+                    'Zero-Day Kernel Exploit Vector',
+                    'Man-in-the-Middle Cipher Hijack',
+                    'Remote Code Execution (RCE) Exploit',
+                    'Brute Force SSH Dictionary attack',
+                    'Cross-Site Scripting (XSS) Injection'
+                  ];
+                  const chosenThreat = threatClassifications[Math.floor(Math.random() * threatClassifications.length)];
+                  const generatedIp = `${Math.floor(Math.random() * 223) + 1}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 254) + 1}`;
+                  
+                  const threatId = `TR-${Math.floor(Math.random() * 900) + 100}`;
+                  const threatSector = `Sector ${chosenSector}`;
+                  
+                  const newThreat = {
+                    id: threatId,
+                    sector: threatSector,
+                    classification: chosenThreat,
+                    status: 'Hostile' as const,
+                    ip: generatedIp,
+                    time: new Date().toLocaleTimeString().split(' ')[0],
+                  };
+                  
+                  setActiveThreats(prev => [newThreat, ...prev]);
+                  setDefcon(1); // Auto upgrade defcon to critical!
+                  notify(`ALERT: Hostile intrusion simulated in ${threatSector}`);
+                  
+                  setCyberLogs(prev => [
+                    {
+                      id: Date.now(),
+                      time: new Date().toLocaleTimeString().split(' ')[0],
+                      msg: `CRITICAL INTRUSION: Hostile ${chosenThreat} detected in ${threatSector} from IP ${generatedIp}. Automated defenses triggered!`,
+                      type: 'intrusion'
+                    },
+                    ...prev
+                  ]);
+                }}
+              >
+                <ShieldAlert size={16} /> SIMULATE INTRUSION ATTACK
+              </button>
+
+              <div className="toggle-switch-panel">
+                <div className="toggle-switch-row">
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: firewallStrict ? '#10b981' : 'rgba(255,255,255,0.4)' }}>STRICT FIREWALL</span>
+                  <div
+                    className={`toggle-cyber ${firewallStrict ? 'active' : ''}`}
+                    onClick={() => {
+                      const next = !firewallStrict;
+                      setFirewallStrict(next);
+                      notify(`Firewall strict mode: ${next ? 'ENABLED' : 'DISABLED'}`);
+                      setCyberLogs(prev => [
+                        {
+                          id: Date.now(),
+                          time: new Date().toLocaleTimeString().split(' ')[0],
+                          msg: `Firewall: Strict enforcement policy updated to ${next ? 'ACTIVE' : 'BYPASS'}.`,
+                          type: 'firewall'
+                        },
+                        ...prev
+                      ]);
+                    }}
+                  >
+                    <div className="toggle-cyber-thumb" />
+                  </div>
+                </div>
+
+                <div className="toggle-switch-row">
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: dpiEnabled ? '#00f2fe' : 'rgba(255,255,255,0.4)' }}>DEEP INSPECTION</span>
+                  <div
+                    className={`toggle-cyber ${dpiEnabled ? 'active' : ''}`}
+                    onClick={() => {
+                      const next = !dpiEnabled;
+                      setDpiEnabled(next);
+                      notify(`Deep Packet Inspection: ${next ? 'ENABLED' : 'DISABLED'}`);
+                      setCyberLogs(prev => [
+                        {
+                          id: Date.now(),
+                          time: new Date().toLocaleTimeString().split(' ')[0],
+                          msg: `Deep Packet Inspection (DPI) core state modified to ${next ? 'ONLINE' : 'OFFLINE'}.`,
+                          type: 'firewall'
+                        },
+                        ...prev
+                      ]);
+                    }}
+                  >
+                    <div className="toggle-cyber-thumb" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="hf-dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {(hasDateFilter || hasExport) && (
+              <div className="hf-dashboard-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                {hasDateFilter && (
+                  <select style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--hf-border)', background: 'var(--hf-surface)', color: 'var(--hf-text)' }}>
+                    <option>Last 7 Days</option>
+                    <option>Last 30 Days</option>
+                    <option>This Year</option>
+                  </select>
+                )}
+                {hasExport && (
+                  <button className="generated-cta" style={{ padding: '8px 16px' }} onClick={() => runAction('export', 'CSV')}>
+                    Export to CSV
+                  </button>
+                )}
+              </div>
+            )}
+            <div className={`hf-dashboard generated-grid ${grid}`}>
+              {schema.metrics.map((m, i) => {
+                const sparklinePaths = [
+                  "M0,20 Q25,5 50,15 T100,10",
+                  "M0,15 Q25,25 50,10 T100,5",
+                  "M0,10 Q25,30 50,20 T100,15",
+                  "M0,25 Q25,10 50,15 T100,20"
+                ];
+                return (
+                  <article className="hf-metric-card" key={m.label} onMouseMove={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    e.currentTarget.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+                    e.currentTarget.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+                  }}>
+                    <p className="hf-metric-label">{m.label}</p>
+                    <div className="hf-metric-value">{m.value}</div>
+                    <span className={`hf-metric-delta ${m.delta.startsWith('-') ? 'negative' : ''}`}>{m.delta}</span>
+                    {hasSparklines && (
+                      <svg viewBox="0 0 100 30" style={{ width: '100%', height: '30px', marginTop: '12px', overflow: 'visible' }}>
+                        <path d={sparklinePaths[i % sparklinePaths.length]} fill="none" stroke={m.delta.startsWith('-') ? '#ff4d4f' : '#52c41a'} strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        )
       )}
 
       {schema.pattern === 'settings' && (

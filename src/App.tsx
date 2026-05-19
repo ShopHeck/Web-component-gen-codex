@@ -39,6 +39,7 @@ export default function App() {
   const [active, setActive] = useState(templates[0][0]);
   const [selected, setSelected] = useState<Selection>(null);
   const [assistMode, setAssistMode] = useState<'deterministic' | 'ai-assist' | 'hybrid'>('hybrid');
+  const [forceSlowPath, setForceSlowPath] = useState(false);
   const [editDirective, setEditDirective] = useState('');
   const [editFeedback, setEditFeedback] = useState('');
 
@@ -132,7 +133,7 @@ export default function App() {
             setWorkingSchema(resetWorkingSchema(baseline));
             setStatusMessage(`AI Assist generated via ${result.provider}${result.warnings.length ? ` (${result.warnings.join('; ')})` : ''}.`);
           } else if (assistMode === 'hybrid') {
-            const result = await generateInterfaceFromPrompt(draftPrompt, { mode: 'hybrid' });
+            const result = await generateInterfaceFromPrompt(draftPrompt, { mode: 'hybrid', forceSlowPath });
             const baseline = resetWorkingSchema(result.schema);
             setGeneratedBaselineSchema(baseline);
             setWorkingSchema(resetWorkingSchema(baseline));
@@ -169,6 +170,12 @@ export default function App() {
               Hybrid Orchestrator
             </button>
           </div>
+          {assistMode === 'hybrid' && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px', fontSize: '12px', cursor: 'pointer' }}>
+              <input type="checkbox" checked={forceSlowPath} onChange={(e) => setForceSlowPath(e.target.checked)} />
+              Force Smart Generation (Slow Path)
+            </label>
+          )}
 
           <Section title="Templates" n="03" />
           <p>Choose a template, then click Use + Generate to refresh the working schema.</p>

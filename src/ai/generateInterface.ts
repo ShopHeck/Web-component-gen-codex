@@ -3,7 +3,7 @@ import { evaluateQuality } from '../generator/quality';
 import type { BlockType, InterfaceBlock, Schema, RequirementBucket } from '../types/schema';
 
 export type AIAssistMode = 'mock' | 'provider' | 'hybrid';
-export type GenerateInterfaceOptions = { mode?: AIAssistMode; provider?: InterfaceProvider };
+export type GenerateInterfaceOptions = { mode?: AIAssistMode; provider?: InterfaceProvider; forceSlowPath?: boolean };
 export type AISchemaContract = {
   title: string;
   intent: string;
@@ -477,7 +477,7 @@ export async function generateInterfaceFromPrompt(prompt: string, options: Gener
     const fastSchema = buildSchema(prompt);
 
     // 2. Decide path based on detected pattern complexity (Fast-Path if standard template pattern found, Slow-Path if custom)
-    if (fastSchema.pattern !== 'custom') {
+    if (fastSchema.pattern !== 'custom' && !options.forceSlowPath) {
       // Fast-Path (Deterministic Template Engine)
       const mockContract: AISchemaContract = {
         title: fastSchema.headline || 'Deterministic Layout',
