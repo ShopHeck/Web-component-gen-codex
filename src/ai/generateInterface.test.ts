@@ -49,6 +49,24 @@ describe('AI assist adapter', () => {
     expect(out.schema.strategy).toBe('ai-assisted');
   });
 
+
+  it('honors mock mode even when a non-mock provider is passed', async () => {
+    let providerCalled = false;
+    const out = await generateInterfaceFromPrompt('build an interactive kanban board', {
+      mode: 'mock',
+      provider: {
+        id: 'remote-provider',
+        generateFromPrompt: async () => {
+          providerCalled = true;
+          return mockProvider.generateFromPrompt('should not be called');
+        }
+      }
+    });
+
+    expect(providerCalled).toBe(false);
+    expect(out.provider).toBe('mock');
+  });
+
   it('falls back to local mode when provider fails', async () => {
     const out = await generateInterfaceFromPrompt('custom interface for fallback', {
       mode: 'provider',

@@ -498,7 +498,7 @@ export async function generateInterfaceFromPrompt(prompt: string, options: Gener
   const mode = options.mode ?? 'mock';
   const timeoutMs = options.timeoutMs ?? 1800;
   const provider = options.provider ?? mockProvider;
-  const useProvider = provider.id !== 'mock' && (mode === 'provider' || mode === 'hybrid' || mode === 'mock');
+  const useProvider = provider.id !== 'mock' && mode !== 'mock';
 
   if (mode === 'hybrid') {
     // 1. Run fast deterministic parser first to detect pattern
