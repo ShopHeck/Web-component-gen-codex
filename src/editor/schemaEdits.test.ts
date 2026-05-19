@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildSchema } from '../generator/parser';
 import { evaluateQuality } from '../generator/quality';
 import { buildExportPackage } from '../export/package';
+import { generateInterfaceFromPrompt } from '../ai/generateInterface';
 import { moveBlock, toggleBlockVisibility, updateBlockItem, updatePlan } from './schemaEdits';
 import { parseEditDirectiveAI, applyPatch } from './editEngine';
 
@@ -54,27 +55,30 @@ describe('schema edits', () => {
   describe('parseEditDirectiveAI and applyPatch NLP integration', () => {
     it('parses and applies price changes for specific plans', async () => {
       const schema = buildSchema('pricing for basic $10/month and pro $20/month');
-      const patch = await parseEditDirectiveAI('change price of basic plan to $15', schema);
-      expect(patch).toEqual({ op: 'update_plan', planName: 'Basic', data: { price: '$15' } });
+      const targetPlan = schema.plans[0].name;
+      const patch = await parseEditDirectiveAI(`change price of ${targetPlan.toLowerCase()} plan to $15`, schema);
+      expect(patch).toEqual({ op: 'update_plan', planName: targetPlan, data: { price: '$15' } });
       const edited = applyPatch(schema, patch);
-      expect(edited.plans.find(p => p.name === 'Basic')?.price).toBe('$15');
+      expect(edited.plans.find(p => p.name === targetPlan)?.price).toBe('$15');
     });
 
     it('parses and applies annual price changes', async () => {
       const schema = buildSchema('pricing for basic $10/month and pro $20/month');
-      const patch = await parseEditDirectiveAI('set pro annual price to $199', schema);
-      expect(patch).toEqual({ op: 'update_plan', planName: 'Pro', data: { annual: '$199' } });
+      const targetPlan = schema.plans[1].name;
+      const patch = await parseEditDirectiveAI(`set ${targetPlan.toLowerCase()} annual price to $199`, schema);
+      expect(patch).toEqual({ op: 'update_plan', planName: targetPlan, data: { annual: '$199' } });
       const edited = applyPatch(schema, patch);
-      expect(edited.plans.find(p => p.name === 'Pro')?.annual).toBe('$199');
+      expect(edited.plans.find(p => p.name === targetPlan)?.annual).toBe('$199');
     });
 
     it('parses and applies featured plan change', async () => {
       const schema = buildSchema('pricing for basic $10/month and pro $20/month');
-      const patch = await parseEditDirectiveAI('make basic plan featured', schema);
-      expect(patch).toEqual({ op: 'update_plan', planName: 'Basic', data: { featured: true } });
+      const targetPlan = schema.plans[0].name;
+      const patch = await parseEditDirectiveAI(`make ${targetPlan.toLowerCase()} plan featured`, schema);
+      expect(patch).toEqual({ op: 'update_plan', planName: targetPlan, data: { featured: true } });
       const edited = applyPatch(schema, patch);
-      expect(edited.plans.find(p => p.name === 'Basic')?.visual.featured).toBe(true);
-      expect(edited.plans.find(p => p.name === 'Pro')?.visual.featured).toBe(false);
+      expect(edited.plans.find(p => p.name === targetPlan)?.visual.featured).toBe(true);
+      expect(edited.plans.filter((p) => p.name !== targetPlan).every((p) => !p.visual.featured)).toBe(true);
     });
 
     it('no-ops when asked to feature a non-existent plan', async () => {
@@ -113,6 +117,35 @@ describe('schema edits', () => {
       expect(patch).toEqual({ op: 'move_block', blockType: 'pricingCards', position: 'bottom' });
       const edited = applyPatch(schema, patch);
       expect(edited.blocks[edited.blocks.length - 1].type).toBe('pricingCards');
+    });
+  });
+
+  describe('AI assist + editing regression coverage', () => {
+    it('creates editable working schema from mock kanban and export uses edited schema', async () => {
+      const generated = await generateInterfaceFromPrompt('interactive kanban board with subtle active glow');
+      const kanban = generated.schema.blocks.find((b) => b.type === 'customRequirementGrid' && String(b.data?.widget) === 'kanban');
+      expect(kanban).toBeDefined();
+
+      const edited = applyPatch(generated.schema, { op: 'set_block_data', blockType: 'customRequirementGrid', data: { helperText: 'Edited helper state' } });
+      const editedKanban = edited.blocks.find((b) => b.type === 'customRequirementGrid' && String(b.data?.widget) === 'kanban');
+      expect((editedKanban?.data as any)?.helperText).toBe('Edited helper state');
+
+      const quality = evaluateQuality(edited);
+      const pkg = buildExportPackage(edited, tokens as any, quality);
+      const exportedKanban = pkg.repairedSchema.blocks.find((b) => b.type === 'customRequirementGrid' && String(b.data?.widget) === 'kanban');
+      expect((exportedKanban?.data as any)?.helperText).toBe('Edited helper state');
+    });
+
+    it('local pricing and globe schemas remain editable/selectable', async () => {
+      const pricing = buildSchema('pricing for basic $10/month and pro $20/month');
+      const targetPlan = pricing.plans[0].name;
+      const pricingPatch = await parseEditDirectiveAI(`change price of ${targetPlan.toLowerCase()} plan to $77`, pricing);
+      const editedPricing = applyPatch(pricing, pricingPatch);
+      expect(editedPricing.plans.find((p) => p.name === targetPlan)?.price).toBe('$77');
+
+      const globe = buildSchema('interactive spinning globe with glowing markers and pause controls');
+      expect(globe.blocks.some((b) => b.type === 'globeVisualization')).toBe(true);
+      expect(globe.interactive.selectableItems.length).toBeGreaterThan(0);
     });
   });
 });

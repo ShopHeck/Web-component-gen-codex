@@ -90,3 +90,11 @@
 - Verify generated components do not overflow horizontally and selected outlines remain visible.
 - Verify tool density: compact header/rails, usable prompt area, larger preview canvas.
 - Verify templates remain available and post-generation editing/quality/export still function.
+
+## AI Assist Mode smoke test (May 19, 2026)
+1. Enable AI Assist Mode with mock/default provider settings (no external provider keys configured).
+2. Run mock kanban prompt and verify kanban board renders with editable card/column inspector state.
+3. Run CRM table prompt and verify table-like requirement grid renders with selectable/editable content.
+4. Run onboarding wizard prompt and verify onboarding steps/progress render with editable working schema.
+5. Edit generated AI Assist content, then export and verify exported schema reflects those edits.
+6. Force provider failure (or provider mode without valid config) and verify Local Mode fallback generates deterministic schema.
