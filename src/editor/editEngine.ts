@@ -217,32 +217,36 @@ export async function parseEditDirectiveAI(instruction: string, schema: Schema):
     }
   }
 
-  // A: Price Changes (e.g. "change price of startup plan to $29" or "set startup price to $29")
-  const priceMatch = raw.match(/(?:change|set|make)\s+(?:the\s+)?(?:price\s+of\s+)?([a-zA-Z0-9\-\s]+?)\s+(?:plan\s+)?(?:price\s+)?to\s+([$€£\d]+(?:\/\w+)?)/i);
-  if (priceMatch) {
-    const planName = priceMatch[1].replace(/(?:plan|cards?)/gi, '').trim();
-    const priceVal = priceMatch[2].trim();
-    const actualPlan = schema.plans.find(p => p.name.toLowerCase() === planName.toLowerCase() || p.name.toLowerCase().includes(planName.toLowerCase()));
-    return { op: 'update_plan', planName: actualPlan?.name ?? (planName.charAt(0).toUpperCase() + planName.slice(1)), data: { price: priceVal } };
-  }
-
   // B: Annual Price Changes (e.g. "set pro annual price to $290" or "change annual of startup to $190")
-  const annualMatch = raw.match(/(?:change|set|make)\s+(?:the\s+)?(?:annual\s+price\s+of\s+)?([a-zA-Z0-9\-\s]+?)\s+annual(?:\s+price)?\s+to\s+([$€£\d]+(?:\/\w+)?)/i);
+  const findPlanByName = (candidate: string) => {
+    const normalized = candidate.replace(/(?:plan|cards?)/gi, '').trim().toLowerCase();
+    return schema.plans.find((p) => p.name.toLowerCase() === normalized || p.name.toLowerCase().includes(normalized));
+  };
+
+  const annualMatch = raw.match(/(?:change|set|make)\s+(?:the\s+)?([a-zA-Z0-9\-\s]+?)\s+annual(?:\s+price)?\s+to\s+([$€£\d]+(?:\/\w+)?)/i);
   if (annualMatch) {
-    const planName = annualMatch[1].replace(/(?:plan|cards?)/gi, '').trim();
+    const planName = annualMatch[1];
     const priceVal = annualMatch[2].trim();
-    const exists = schema.plans.some(p => p.name.toLowerCase() === planName.toLowerCase() || p.name.toLowerCase().includes(planName.toLowerCase()));
-    if (exists) {
-      const actualPlan = schema.plans.find(p => p.name.toLowerCase() === planName.toLowerCase() || p.name.toLowerCase().includes(planName.toLowerCase()))!;
+    const actualPlan = findPlanByName(planName);
+    if (actualPlan) {
       return { op: 'update_plan', planName: actualPlan.name, data: { annual: priceVal } };
     }
+  }
+
+  // A: Price Changes (e.g. "change price of startup plan to $29" or "set startup price to $29")
+  const priceMatch = raw.match(/(?:change|set|make)\s+(?:the\s+)?(?:price\s+of\s+)?([a-zA-Z0-9\-\s]+?)(?:\s+plan)?(?:\s+price)?\s+to\s+([$€£\d]+(?:\/\w+)?)/i);
+  if (priceMatch) {
+    const planName = priceMatch[1];
+    const priceVal = priceMatch[2].trim();
+    const actualPlan = findPlanByName(planName);
+    return { op: 'update_plan', planName: actualPlan?.name ?? (planName.charAt(0).toUpperCase() + planName.slice(1)), data: { price: priceVal } };
   }
 
   // C: Featured Plan Selection (e.g. "make pro plan featured" or "feature basic")
   const featureMatch = raw.match(/^(?:make|set)\s+([a-zA-Z0-9\-\s]+?)(?:\s+plan)?\s+(?:as\s+)?featured$/i) || raw.match(/^feature\s+(?:the\s+)?([a-zA-Z0-9\-\s]+?)(?:\s+plan)?$/i);
   if (featureMatch) {
-    const planName = featureMatch[1].replace(/(?:plan|cards?)/gi, '').trim();
-    const actualPlan = schema.plans.find(p => p.name.toLowerCase() === planName.toLowerCase() || p.name.toLowerCase().includes(planName.toLowerCase()));
+    const planName = featureMatch[1];
+    const actualPlan = findPlanByName(planName);
     if (actualPlan) {
       return { op: 'update_plan', planName: actualPlan.name, data: { featured: true } };
     }
