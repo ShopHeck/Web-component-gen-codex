@@ -186,6 +186,13 @@ export default function App() {
             <Chip label="Pattern" value={draftSchema.pattern} />
             <Chip label="Strategy" value={draftSchema.strategy} />
           </div>
+          <p style={{ marginTop: 8, fontSize: 12 }}>
+            Local Mode: deterministic templates and known patterns.
+            <br />
+            AI Assist Mode: richer custom schema generation.
+            <br />
+            Mock provider is active unless explicitly configured otherwise.
+          </p>
 
           <Section title="Generation mode" n="02" />
           <div className="chips">

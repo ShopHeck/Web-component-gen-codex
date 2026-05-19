@@ -3,19 +3,24 @@ import { evaluateQuality } from '../generator/quality';
 import type { BlockType, InterfaceBlock, Schema, RequirementBucket } from '../types/schema';
 
 export type AIAssistMode = 'mock' | 'provider' | 'hybrid';
-export type GenerateInterfaceOptions = { mode?: AIAssistMode; provider?: InterfaceProvider; forceSlowPath?: boolean };
+export type GenerateInterfaceOptions = { mode?: AIAssistMode; provider?: InterfaceProvider; forceSlowPath?: boolean; timeoutMs?: number };
 export type AISchemaContract = {
   title: string;
+  description?: string;
   intent: string;
   blocks: InterfaceBlock[];
+  layout?: { type: 'single' | 'two-column' | 'three-column' | 'board' | 'timeline'; density?: 'compact' | 'comfortable' };
   components: string[];
   interactions: string[];
+  designTokens?: string[];
   styleDirectives: string[];
   requirements: string[];
   warnings: string[];
+  limitations?: string[];
 };
 export type GenerateInterfaceResult = { schema: Schema; contract: AISchemaContract; warnings: string[]; provider: string };
 export type InterfaceProvider = { id: string; generateFromPrompt: (prompt: string) => Promise<AISchemaContract> };
+export type RemoteProviderConfig = { enabled: boolean; endpoint?: string; apiKey?: string };
 
 // Expand to support all valid block types in the generation pipeline
 export const SUPPORTED_BLOCKS = new Set<BlockType>([
@@ -34,7 +39,7 @@ export const SUPPORTED_BLOCKS = new Set<BlockType>([
   'audioVisualizer3D', 'frequencyControls', 'threatRadar'
 ]);
 
-export const AI_PROMPT_CONTRACT = 'Return strict JSON only with: title, intent, blocks, components, interactions, styleDirectives, requirements, warnings.';
+export const AI_PROMPT_CONTRACT = 'Return strict JSON only with: title, description, intent, blocks, layout, components, interactions, designTokens, styleDirectives, requirements, warnings, limitations.';
 
 function extractProductName(prompt: string): string {
   const match = prompt.match(/(?:for a|called|named)\s+([a-zA-Z0-9_\-\s]{2,20})(?:\s+with|\s+and|\s+that|\s+for|\.|$)/i);
@@ -348,9 +353,21 @@ export const mockProvider: InterfaceProvider = {
   }
 };
 
+export function createRemoteProvider(config: RemoteProviderConfig): InterfaceProvider {
+  return {
+    id: 'remote',
+    async generateFromPrompt() {
+      if (!config.enabled) throw new Error('remote provider disabled');
+      if (!config.endpoint || !config.apiKey) throw new Error('remote provider missing configuration');
+      throw new Error('remote provider not implemented');
+    }
+  };
+}
+
 export function validateAISchemaContract(payload: AISchemaContract): string[] {
   const warnings: string[] = [];
   if (!payload.title) warnings.push('Missing title');
+  if (!payload.intent) warnings.push('Missing intent');
   if (!Array.isArray(payload.blocks)) {
     warnings.push('Missing blocks array');
     return warnings;
@@ -360,7 +377,17 @@ export function validateAISchemaContract(payload: AISchemaContract): string[] {
       warnings.push(`Unsupported block sanitized: ${block.type}`); 
     }
   });
+  if (!Array.isArray(payload.interactions) || payload.interactions.length === 0) {
+    warnings.push('missing_required_interaction');
+  }
   return warnings;
+}
+
+function withTimeout<T>(p: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error('provider timeout')), timeoutMs);
+    p.then((v) => { clearTimeout(id); resolve(v); }).catch((e) => { clearTimeout(id); reject(e); });
+  });
 }
 
 function mapContractToSchema(prompt: string, contract: AISchemaContract): Schema {
@@ -469,6 +496,7 @@ function mapContractToSchema(prompt: string, contract: AISchemaContract): Schema
 
 export async function generateInterfaceFromPrompt(prompt: string, options: GenerateInterfaceOptions = {}): Promise<GenerateInterfaceResult> {
   const mode = options.mode ?? 'mock';
+  const timeoutMs = options.timeoutMs ?? 1800;
   const useProvider = mode === 'provider' || (mode === 'hybrid' && (options.provider?.id !== 'mock')) || (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_IF_AI_PROVIDER === '1');
   const provider = options.provider ?? mockProvider;
 
@@ -503,24 +531,46 @@ export async function generateInterfaceFromPrompt(prompt: string, options: Gener
     }
 
     // Slow-Path (AI Agent Orchestrator)
-    const contract = useProvider ? await provider.generateFromPrompt(prompt) : await mockProvider.generateFromPrompt(prompt);
+    try {
+      const contract = await withTimeout(useProvider ? provider.generateFromPrompt(prompt) : mockProvider.generateFromPrompt(prompt), timeoutMs);
+      const warnings = [...validateAISchemaContract(contract), ...contract.warnings];
+      const schema = mapContractToSchema(prompt, contract);
+      const quality = evaluateQuality(schema);
+      if (quality.promptCoverageScore < 70) warnings.push('Schema misses part of prompt intent.');
+      if (warnings.some((w) => w.includes('Unsupported block'))) warnings.push('unsupported_ai_block');
+      if (warnings.some((w) => w.includes('missing_required_interaction'))) warnings.push('missing_required_interaction');
+      return {
+        schema,
+        contract,
+        warnings,
+        provider: `hybrid-slowpath (AI Agent Orchestrator: ${useProvider ? provider.id : 'mock'})`
+      };
+    } catch {
+      const fallback = buildSchema(prompt);
+      return {
+        schema: { ...fallback, generationMeta: { ...(fallback.generationMeta ?? {}), aiFallbackUsed: true } as any },
+        contract: { title: fallback.headline, intent: fallback.subhead, blocks: fallback.blocks, components: [], interactions: fallback.controlsInteractions, styleDirectives: fallback.directives, requirements: fallback.requirements.map((r) => r.label), warnings: ['fallback_used'], description: 'Fallback deterministic schema' },
+        warnings: ['invalid_ai_schema', 'fallback_used'],
+        provider: 'hybrid-fallback-local'
+      };
+    }
+  }
+  try {
+    const contract = await withTimeout(useProvider ? provider.generateFromPrompt(prompt) : mockProvider.generateFromPrompt(prompt), timeoutMs);
     const warnings = [...validateAISchemaContract(contract), ...contract.warnings];
     const schema = mapContractToSchema(prompt, contract);
     const quality = evaluateQuality(schema);
     if (quality.promptCoverageScore < 70) warnings.push('Schema misses part of prompt intent.');
-
+    if (warnings.some((w) => w.includes('Unsupported block'))) warnings.push('unsupported_ai_block');
+    if (warnings.some((w) => w.includes('missing_required_interaction'))) warnings.push('missing_required_interaction');
+    return { schema, contract, warnings, provider: useProvider ? provider.id : 'mock' };
+  } catch {
+    const fallback = buildSchema(prompt);
     return {
-      schema,
-      contract,
-      warnings,
-      provider: `hybrid-slowpath (AI Agent Orchestrator: ${useProvider ? provider.id : 'mock'})`
+      schema: { ...fallback, generationMeta: { ...(fallback.generationMeta ?? {}), aiFallbackUsed: true } as any },
+      contract: { title: fallback.headline, intent: fallback.subhead, blocks: fallback.blocks, components: [], interactions: fallback.controlsInteractions, styleDirectives: fallback.directives, requirements: fallback.requirements.map((r) => r.label), warnings: ['fallback_used'], description: 'Fallback deterministic schema' },
+      warnings: ['invalid_ai_schema', 'fallback_used'],
+      provider: 'local-fallback'
     };
   }
-
-  const contract = useProvider ? await provider.generateFromPrompt(prompt) : await mockProvider.generateFromPrompt(prompt);
-  const warnings = [...validateAISchemaContract(contract), ...contract.warnings];
-  const schema = mapContractToSchema(prompt, contract);
-  const quality = evaluateQuality(schema);
-  if (quality.promptCoverageScore < 70) warnings.push('Schema misses part of prompt intent.');
-  return { schema, contract, warnings, provider: useProvider ? provider.id : 'mock' };
 }
