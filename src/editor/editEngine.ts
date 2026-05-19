@@ -243,7 +243,9 @@ export async function parseEditDirectiveAI(instruction: string, schema: Schema):
   if (featureMatch) {
     const planName = featureMatch[1].replace(/(?:plan|cards?)/gi, '').trim();
     const actualPlan = schema.plans.find(p => p.name.toLowerCase() === planName.toLowerCase() || p.name.toLowerCase().includes(planName.toLowerCase()));
-    return { op: 'update_plan', planName: actualPlan?.name ?? (planName.charAt(0).toUpperCase() + planName.slice(1)), data: { featured: true } };
+    if (actualPlan) {
+      return { op: 'update_plan', planName: actualPlan.name, data: { featured: true } };
+    }
   }
 
   // D: Add Feature to Plan or Main Features
