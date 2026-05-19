@@ -182,6 +182,88 @@ export function GeneratedRenderer({
   ]);
   const [cyberLogFilter, setCyberLogFilter] = useState<'all' | 'intrusion' | 'firewall' | 'isolation'>('all');
 
+  // ─── Spatial Audio Workspace State ───
+  const [audioNodes, setAudioNodes] = useState<Array<{ id: string; label: string; x: number; y: number; color: string }>>([
+    { id: 'vox', label: 'Vocals', x: 45, y: -20, color: 'oklch(0.78 0.18 60)' },
+    { id: 'drums', label: 'Drums', x: -60, y: 10, color: 'oklch(0.72 0.22 340)' },
+    { id: 'synth', label: 'Synth', x: 10, y: 80, color: 'oklch(0.82 0.20 180)' },
+  ]);
+  const [audioFreqs, setAudioFreqs] = useState<{ low: number; mid: number; high: number }>({ low: 0, mid: -3, high: 4 });
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioTime, setAudioTime] = useState(84);
+  const audioDuration = 180;
+  const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [audioMeterL, setAudioMeterL] = useState(-12);
+  const [audioMeterR, setAudioMeterR] = useState(-10);
+
+  // ─── Spatial Audio Reactivity Effect ───
+  useEffect(() => {
+    if (!audioPlaying) {
+      // Smoothly decay levels back to a quiet baseline when paused
+      const decayInterval = setInterval(() => {
+        setAudioMeterL(prev => Math.max(-60, prev - 4));
+        setAudioMeterR(prev => Math.max(-60, prev - 4));
+      }, 100);
+      return () => clearInterval(decayInterval);
+    }
+
+    const interval = setInterval(() => {
+      // 1. Advance Playback Time
+      setAudioTime(prev => {
+        const next = prev + 0.1;
+        return next >= audioDuration ? 0 : Number(next.toFixed(1));
+      });
+
+      // 2. Dynamic Reactive Level Metering
+      // Compute signals from vocal, drums, and synth nodes
+      let leftPower = 0;
+      let rightPower = 0;
+
+      // Base levels for each track (in linear amplitude scale)
+      const tracks = [
+        { id: 'vox', baseAmp: 0.6, eqGain: audioFreqs.mid * 0.4 + audioFreqs.high * 0.2 },
+        { id: 'drums', baseAmp: 0.8, eqGain: audioFreqs.low * 0.5 + audioFreqs.mid * 0.1 },
+        { id: 'synth', baseAmp: 0.5, eqGain: audioFreqs.mid * 0.3 + audioFreqs.high * 0.3 }
+      ];
+
+      audioNodes.forEach(node => {
+        const track = tracks.find(t => t.id === node.id) || { baseAmp: 0.5, eqGain: 0 };
+        // Left/Right panning factors (0 to 1)
+        const leftFactor = (100 - node.x) / 200;
+        const rightFactor = (node.x + 100) / 200;
+        
+        // Presence factor based on Front/Rear (Y coordinate) - higher Y = slightly closer/brighter
+        const presence = 1.0 + (node.y / 200); 
+
+        // Apply EQ gain factor (dB to linear amplitude multiplier)
+        const eqMultiplier = Math.pow(10, track.eqGain / 20);
+
+        const nodeAmp = track.baseAmp * presence * eqMultiplier;
+
+        leftPower += nodeAmp * leftFactor;
+        rightPower += nodeAmp * rightFactor;
+      });
+
+      // Add a temporal waveform fluctuation (sine wave + high frequency noise)
+      const timeSecs = Date.now() / 1000;
+      const waveL = 1.0 + 0.25 * Math.sin(timeSecs * 3.5) + 0.15 * Math.sin(timeSecs * 11.2) + 0.1 * (Math.random() - 0.5);
+      const waveR = 1.0 + 0.25 * Math.cos(timeSecs * 4.2) + 0.15 * Math.sin(timeSecs * 9.7) + 0.1 * (Math.random() - 0.5);
+
+      const ampL = Math.max(0.001, leftPower * waveL * 0.25);
+      const ampR = Math.max(0.001, rightPower * waveR * 0.25);
+
+      // Convert amplitude back to dB
+      const dbL = Math.round(20 * Math.log10(ampL));
+      const dbR = Math.round(20 * Math.log10(ampR));
+
+      // Clamp between -60dB and +6dB
+      setAudioMeterL(Math.max(-60, Math.min(6, dbL)));
+      setAudioMeterR(Math.max(-60, Math.min(6, dbR)));
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [audioPlaying, audioNodes, audioFreqs]);
+
   useEffect(() => {
     if (schema.dynamicAST?.state) {
       setAstState({ ...schema.dynamicAST.state });
@@ -1491,7 +1573,7 @@ export function GeneratedRenderer({
         </div>
       )}
 
-      {schema.pattern === 'visualization' && (
+      {schema.pattern === 'visualization' && hasVisualObject && (
         <div className="stack generated-scroll-safe" data-testid="visualization-root">
           {hasVisualObject && (
             <article
@@ -1832,6 +1914,184 @@ export function GeneratedRenderer({
                   }}>{yr}</button>
                 ))}
               </div>
+            ))}
+
+            {hasBlock(schema, 'ctaBand') && <button className="hf-action-btn" onClick={() => runAction('custom_cta', schema.action)}>{schema.action}</button>}
+          </div>
+        );
+      })()}
+
+      {/* ─── Spatial Audio Workspace (audioVisualizer3D) ─── */}
+      {schema.pattern === 'visualization' && hasBlock(schema, 'audioVisualizer3D') && (() => {
+        const gridSize = 300;
+        const toSvg = (v: number) => ((v + 100) / 200) * gridSize;
+        const fromSvg = (px: number) => Math.round((px / gridSize) * 200 - 100);
+        const freqBands: Array<{ key: 'low' | 'mid' | 'high'; label: string; hz: string }> = [
+          { key: 'low', label: 'Low', hz: '80 Hz' },
+          { key: 'mid', label: 'Mid', hz: '1 kHz' },
+          { key: 'high', label: 'High', hz: '12 kHz' },
+        ];
+        const fmtTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        const meterPct = (db: number) => Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+
+        return (
+          <div className="stack generated-scroll-safe" data-testid="spatial-audio-root" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+            {/* ── X/Y Spatial Panner Grid ── */}
+            {renderDraggableBlock('audioVisualizer3D', (
+              <article className="requirement generated-card" data-testid="audio-panner-grid" style={{ padding: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <p style={{ margin: 0, opacity: 0.5, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Spatial Audio</p>
+                    <h3 style={{ margin: '4px 0 0', fontSize: '18px' }}>{schema.headline || 'X/Y Panner Grid'}</h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {audioNodes.map(n => (
+                      <span key={n.id} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', opacity: 0.7 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.color, boxShadow: `0 0 6px ${n.color}` }} />
+                        {n.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <svg
+                  viewBox={`0 0 ${gridSize} ${gridSize}`}
+                  style={{ width: '100%', maxWidth: '460px', margin: '0 auto', display: 'block', background: 'rgba(0,0,0,0.35)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)', cursor: draggingNode ? 'grabbing' : 'default' }}
+                  onMouseMove={(e) => {
+                    if (!draggingNode) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const px = ((e.clientX - rect.left) / rect.width) * gridSize;
+                    const py = ((e.clientY - rect.top) / rect.height) * gridSize;
+                    setAudioNodes(prev => prev.map(n => n.id === draggingNode ? { ...n, x: Math.max(-100, Math.min(100, fromSvg(px))), y: Math.max(-100, Math.min(100, fromSvg(py))) } : n));
+                  }}
+                  onMouseUp={() => setDraggingNode(null)}
+                  onMouseLeave={() => setDraggingNode(null)}
+                >
+                  {/* Grid lines */}
+                  {[-75, -50, -25, 0, 25, 50, 75].map(v => (
+                    <g key={v}>
+                      <line x1={toSvg(v)} y1={0} x2={toSvg(v)} y2={gridSize} stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+                      <line x1={0} y1={toSvg(v)} x2={gridSize} y2={toSvg(v)} stroke="rgba(255,255,255,0.06)" strokeWidth="0.5" />
+                    </g>
+                  ))}
+                  {/* Center crosshair */}
+                  <line x1={gridSize / 2} y1={0} x2={gridSize / 2} y2={gridSize} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
+                  <line x1={0} y1={gridSize / 2} x2={gridSize} y2={gridSize / 2} stroke="rgba(255,255,255,0.15)" strokeWidth="1" strokeDasharray="4 4" />
+                  {/* Axis labels */}
+                  <text x={gridSize / 2} y={12} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="middle">FRONT</text>
+                  <text x={gridSize / 2} y={gridSize - 4} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="middle">REAR</text>
+                  <text x={6} y={gridSize / 2 + 3} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="start">L</text>
+                  <text x={gridSize - 6} y={gridSize / 2 + 3} fill="rgba(255,255,255,0.3)" fontSize="9" textAnchor="end">R</text>
+
+                  {/* Audio nodes */}
+                  {audioNodes.map(n => {
+                    const cx = toSvg(n.x);
+                    const cy = toSvg(n.y);
+                    return (
+                      <g key={n.id} style={{ cursor: 'grab' }} onMouseDown={(e) => { e.preventDefault(); setDraggingNode(n.id); }}>
+                        <circle cx={cx} cy={cy} r="20" fill={n.color} opacity="0.1" />
+                        <circle cx={cx} cy={cy} r="12" fill={n.color} opacity="0.25" style={{ filter: `drop-shadow(0 0 8px ${n.color})` }} />
+                        <circle cx={cx} cy={cy} r="6" fill={n.color} style={{ filter: `drop-shadow(0 0 4px ${n.color})` }} />
+                        <text x={cx} y={cy - 16} fill={n.color} fontSize="9" textAnchor="middle" fontWeight="600">{n.label}</text>
+                        <text x={cx} y={cy + 22} fill="rgba(255,255,255,0.4)" fontSize="7" textAnchor="middle">({n.x}, {n.y})</text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              </article>
+            ))}
+
+            {/* ── Frequency EQ Controls ── */}
+            {hasBlock(schema, 'frequencyControls') && renderDraggableBlock('frequencyControls', (
+              <article className="requirement generated-card" data-testid="frequency-eq-controls" style={{ padding: '24px' }}>
+                <p style={{ margin: '0 0 16px', opacity: 0.5, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Equalizer Modulation</p>
+                <div style={{ display: 'flex', gap: '24px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  {freqBands.map(band => {
+                    const val = audioFreqs[band.key];
+                    const angle = (val / 12) * 135;
+                    return (
+                      <div key={band.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '100px' }}>
+                        <span style={{ fontSize: '11px', opacity: 0.5, textTransform: 'uppercase' }}>{band.label}</span>
+                        {/* Knob */}
+                        <div style={{
+                          width: '72px', height: '72px', borderRadius: '50%',
+                          background: 'conic-gradient(from 180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03), rgba(255,255,255,0.08))',
+                          border: '2px solid rgba(255,255,255,0.12)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          boxShadow: `0 0 20px rgba(255,255,255,0.04), inset 0 2px 4px rgba(0,0,0,0.4)`,
+                          position: 'relative',
+                        }}>
+                          <div style={{
+                            width: '4px', height: '24px', borderRadius: '2px',
+                            background: design.highlight,
+                            boxShadow: `0 0 8px ${design.highlight}`,
+                            transform: `rotate(${angle}deg)`,
+                            transformOrigin: 'center bottom',
+                            position: 'absolute', top: '8px',
+                            transition: 'transform 0.2s',
+                          }} />
+                        </div>
+                        <input type="range" min={-12} max={12} step={1} value={val}
+                          onChange={(e) => setAudioFreqs(prev => ({ ...prev, [band.key]: Number(e.target.value) }))}
+                          style={{ width: '80px', accentColor: design.highlight }}
+                        />
+                        <span style={{ fontSize: '13px', fontFamily: 'monospace', color: val > 0 ? 'oklch(0.78 0.18 145)' : val < 0 ? 'oklch(0.72 0.18 25)' : 'inherit' }}>
+                          {val > 0 ? '+' : ''}{val} dB
+                        </span>
+                        <span style={{ fontSize: '10px', opacity: 0.35 }}>{band.hz}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </article>
+            ))}
+
+            {/* ── Timeline & Level Meters ── */}
+            {hasBlock(schema, 'timelineControls') && renderDraggableBlock('timelineControls', (
+              <article className="requirement generated-card" data-testid="audio-transport" style={{ padding: '20px' }}>
+                <p style={{ margin: '0 0 12px', opacity: 0.5, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Transport & Metering</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  {/* Play/Pause */}
+                  <button onClick={() => setAudioPlaying(p => !p)} style={{
+                    width: '42px', height: '42px', borderRadius: '50%', border: `2px solid ${design.highlight}`,
+                    background: audioPlaying ? design.highlight : 'transparent',
+                    color: audioPlaying ? '#000' : design.highlight,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '16px', transition: 'all 0.2s',
+                  }}>
+                    {audioPlaying ? '❚❚' : '▶'}
+                  </button>
+                  {/* Timeline */}
+                  <div style={{ flex: 1, minWidth: '160px' }}>
+                    <input type="range" min={0} max={audioDuration} value={audioTime}
+                      onChange={(e) => setAudioTime(Number(e.target.value))}
+                      style={{ width: '100%', accentColor: design.highlight }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontFamily: 'monospace', opacity: 0.5 }}>
+                      <span>{fmtTime(audioTime)}</span>
+                      <span>{fmtTime(audioDuration)}</span>
+                    </div>
+                  </div>
+                  {/* Level meters */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', height: '42px' }}>
+                    {[{ ch: 'L', db: audioMeterL }, { ch: 'R', db: audioMeterR }].map(m => (
+                      <div key={m.ch} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                        <div style={{ width: '14px', height: '36px', borderRadius: '3px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', position: 'relative', overflow: 'hidden' }}>
+                          <div style={{
+                            position: 'absolute', bottom: 0, left: 0, right: 0,
+                            height: `${meterPct(m.db)}%`,
+                            background: m.db > -6 ? 'linear-gradient(to top, oklch(0.72 0.22 145), oklch(0.78 0.22 80), oklch(0.72 0.22 25))' : 'linear-gradient(to top, oklch(0.72 0.22 145), oklch(0.78 0.22 145))',
+                            transition: 'height 0.15s',
+                          }} />
+                        </div>
+                        <span style={{ fontSize: '8px', opacity: 0.4 }}>{m.ch}</span>
+                      </div>
+                    ))}
+                    <span style={{ fontSize: '10px', fontFamily: 'monospace', opacity: 0.5, marginLeft: '4px' }}>{audioMeterL}dB</span>
+                  </div>
+                </div>
+              </article>
             ))}
 
             {hasBlock(schema, 'ctaBand') && <button className="hf-action-btn" onClick={() => runAction('custom_cta', schema.action)}>{schema.action}</button>}
