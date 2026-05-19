@@ -77,6 +77,19 @@ describe('schema edits', () => {
       expect(edited.plans.find(p => p.name === 'Pro')?.visual.featured).toBe(false);
     });
 
+    it('no-ops when asked to feature a non-existent plan', async () => {
+      const schema = buildSchema('pricing for basic $10/month and pro $20/month');
+      const beforeBasicFeatured = schema.plans.find(p => p.name === 'Basic')?.visual.featured;
+      const beforeProFeatured = schema.plans.find(p => p.name === 'Pro')?.visual.featured;
+      const patch = await parseEditDirectiveAI('feature enterprise', schema);
+      expect(patch.op).not.toBe('update_plan');
+
+      const edited = applyPatch(schema, patch);
+      expect(edited).toEqual(schema);
+      expect(edited.plans.find(p => p.name === 'Basic')?.visual.featured).toBe(beforeBasicFeatured);
+      expect(edited.plans.find(p => p.name === 'Pro')?.visual.featured).toBe(beforeProFeatured);
+    });
+
     it('parses and applies adding feature to a plan', async () => {
       const schema = buildSchema('pricing for basic $10/month and pro $20/month');
       const patch = await parseEditDirectiveAI('add feature offline mode to pro plan', schema);

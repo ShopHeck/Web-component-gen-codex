@@ -14,6 +14,21 @@ describe('AI assist adapter', () => {
     expect(out.styleDirectives).toContain('kanban:glow:subtle');
   });
 
+  it('mock provider supports representative prompts', async () => {
+    const prompts = [
+      'interactive kanban board with subtle active glow',
+      'CRM customer table with filters and status badges',
+      'onboarding wizard with progress steps',
+      'product analytics dashboard with KPI cards and activity feed',
+      'timeline roadmap with milestones and launch CTA'
+    ];
+    for (const prompt of prompts) {
+      const out = await mockProvider.generateFromPrompt(prompt);
+      expect(out.blocks.length).toBeGreaterThan(0);
+      expect(out.title.length).toBeGreaterThan(0);
+    }
+  });
+
   it('maps prompt to schema for export pipeline', async () => {
     const out = await generateInterfaceFromPrompt('build an interactive kanban board with subtle glow behind active components');
     expect(out.schema.strategy).toBe('ai-assisted');
@@ -32,5 +47,15 @@ describe('AI assist adapter', () => {
     expect(out.provider).toContain('hybrid-slowpath');
     expect(out.schema.pattern).toBe('custom');
     expect(out.schema.strategy).toBe('ai-assisted');
+  });
+
+  it('falls back to local mode when provider fails', async () => {
+    const out = await generateInterfaceFromPrompt('custom interface for fallback', {
+      mode: 'provider',
+      provider: { id: 'broken', generateFromPrompt: async () => { throw new Error('nope'); } }
+    });
+    expect(out.provider).toContain('fallback');
+    expect(out.warnings).toContain('fallback_used');
+    expect(out.schema.blocks.length).toBeGreaterThan(0);
   });
 });
